@@ -138,7 +138,7 @@ export function extractIdentifierTokens(text: string): UnbackedIdentifier[] {
   const collect = (regex: RegExp, kind: IdentifierKind): void => {
     for (const match of text.matchAll(regex)) {
       if (typeof match.index !== 'number') continue;
-      const token = match[0];
+      const token = kind === 'url' ? trimUrlToken(match[0]) : match[0];
       const start = match.index;
       const end = start + token.length;
       if (overlapsClaimed(start, end)) continue;
@@ -165,11 +165,36 @@ export function extractIdentifierTokens(text: string): UnbackedIdentifier[] {
   return out;
 }
 
+/**
+ * A URL as a reader would bound it, without the punctuation the prose put
+ * after it. The URL pattern runs to the next space, so a markdown link inside
+ * parentheses, `([example.com](https://example.com))`, would otherwise yield
+ * `https://example.com))`: a string in no tool result, reported as invented.
+ * Trailing sentence punctuation and emphasis are dropped; a closing bracket is
+ * kept only when the URL itself opened one (`https://en.wikipedia.org/wiki/Foo_(bar)`).
+ */
+export function trimUrlToken(raw: string): string {
+  let url = raw;
+  for (;;) {
+    const last = url.slice(-1);
+    if (last !== '' && '.,;:!?*_~'.includes(last)) {
+      url = url.slice(0, -1);
+      continue;
+    }
+    const opener = last === ')' ? '(' : last === ']' ? '[' : last === '}' ? '{' : '';
+    if (opener && url.split(opener).length < url.split(last).length) {
+      url = url.slice(0, -1);
+      continue;
+    }
+    return url;
+  }
+}
+
 function makeExcerpt(text: string, index: number, length: number): string {
   const start = Math.max(0, index - 30);
   const end = Math.min(text.length, index + length + 30);
   const fragment = text.slice(start, end).replace(/\s+/g, ' ').trim();
-  return fragment.length > 80 ? fragment.slice(0, 77) + '...' : fragment;
+  return fragment.length > 80 ? fragment.slice(0, 77) + '…' : fragment;
 }
 
 /**

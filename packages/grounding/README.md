@@ -46,6 +46,7 @@ runGroundingGate({
 
 - A 7-character hash prefix passes when the full hash is in the evidence.
 - URLs on well-known public documentation hosts (GitHub, MDN, npm and similar; see `DEFAULT_ALLOWED_HOSTS`) need no evidence. Pass `allowedHosts` to change the list, or `[]` to require evidence for every URL.
+- Punctuation after a URL is not part of it: `([example.com](https://example.com)).` checks `https://example.com`. A closing bracket is kept only when the URL opened one.
 - Long English words and compounds ("documentation", "well-designed-home", "London-based") are not treated as ids.
 
 ### Citation drift (`unsupported_citation`, error)
@@ -166,7 +167,7 @@ Each check is also exported on its own, with a `status: 'passed' | 'failed' | 's
 - `checkQuantities({ text, evidence? })`
 - `checkWrites({ writes?, evidence?, citations? })`
 
-Lower-level helpers: `extractIdentifierTokens`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER` and `DEFAULT_SEVERITY`.
+Lower-level helpers: `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER` and `DEFAULT_SEVERITY`.
 
 ## Limits
 

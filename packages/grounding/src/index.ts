@@ -13,6 +13,7 @@ export {
 export {
   checkIdentifiers,
   extractIdentifierTokens,
+  trimUrlToken,
   DEFAULT_ALLOWED_HOSTS,
   type IdentifierCheckInput,
   type IdentifierCheckResult,

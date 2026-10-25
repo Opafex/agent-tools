@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { checkIdentifiers, type CitationIndex } from '../src/index.js';
+import { checkIdentifiers, trimUrlToken, type CitationIndex } from '../src/index.js';
 
 const FULL_SHA = '7c3e9a1f4b2d8e6a0c5f9b3d7e1a4c8f2b6d0e9a';
 
@@ -203,5 +203,29 @@ describe('checkIdentifiers: mixed and edge cases', () => {
     circular.self = circular;
     const r = checkIdentifiers({ text: `Commit ${FULL_SHA} shipped.`, evidence: [circular, { sha: FULL_SHA }] });
     expect(r.status).toBe('passed');
+  });
+});
+
+describe('checkIdentifiers: the punctuation after a URL', () => {
+  const evidence = [{ results: [{ url: 'https://example-one.co.uk' }, { url: 'https://www.example-two.com/about' }] }];
+
+  it('backs a markdown link inside parentheses', () => {
+    const r = checkIdentifiers({
+      text: 'Example One ([example-one.co.uk](https://example-one.co.uk)) and Example Two ([example-two.com](https://www.example-two.com)).',
+      evidence,
+    });
+    expect(r.unbacked).toEqual([]);
+    expect(r.status).toBe('passed');
+  });
+
+  it('drops sentence punctuation and emphasis but keeps a bracket the URL opened', () => {
+    expect(trimUrlToken('https://example-one.co.uk).')).toBe('https://example-one.co.uk');
+    expect(trimUrlToken('https://example-one.co.uk**,')).toBe('https://example-one.co.uk');
+    expect(trimUrlToken('https://en.wikipedia.org/wiki/Foo_(bar))')).toBe('https://en.wikipedia.org/wiki/Foo_(bar)');
+  });
+
+  it('still flags a URL that is in no result once its punctuation is gone', () => {
+    const r = checkIdentifiers({ text: 'See ([example-three.co.uk](https://example-three.co.uk)).', evidence });
+    expect(r.unbacked.map((u) => u.token)).toEqual(['https://example-three.co.uk']);
   });
 });
