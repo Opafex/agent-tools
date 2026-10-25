@@ -50,23 +50,23 @@ runGroundingGate({
 
 ### Citation drift (`unsupported_citation`, error)
 
-For agents that cite their sources inline, such as `The schema has three tables [tc4].`. Checking that `tc4` exists is easy. This checks the harder thing: that the cited sentence's specific details are in the cited source.
+For agents that cite their sources inline, such as `The schema has three tables [4].`. Checking that `[4]` exists is easy. This checks the harder thing: that the cited sentence's specific details are in the cited source.
 
 ```ts
 runGroundingGate({
-  text: 'The schema includes users, accounts, sessions, and verification tokens [tc4].',
+  text: 'The schema includes users, accounts, sessions, and verification tokens [4].',
   citations: {
-    tc4: { content: 'model order_items { ... } model invoice_lines { ... } model stock_levels { ... }' },
+    4: { content: 'model order_items { ... } model invoice_lines { ... } model stock_levels { ... }' },
   },
 });
-// unsupported_citation: tc4 does not contain users, accounts, sessions, ...
+// unsupported_citation: [4] does not contain users, accounts, sessions, ...
 ```
 
 From each cited sentence it extracts identifier-like tokens (snake_case, CamelCase, dotted paths, versions, quoted strings, and items in a list of three or more bare words) and looks for them in the cited content. It tolerates plurals, brand suffixes (`Next.js` against `next`) and CamelCase against kebab-case (`NextAuth` against `next-auth`). A sentence is flagged when two or more tokens are missing, or at least half are.
 
 - Sentences containing a negation ("does not use X") are skipped.
 - A token missing from the cited source but present in another source counts as mis-attribution and is not flagged.
-- The marker defaults to `[tc1]`, `[tc2]` and so on. Pass `citationMarker` with your own pattern; capture group 1 is the citation id.
+- The marker defaults to `[1]`, `[2]` and so on; `rows[0]` is not a citation. Pass `citationMarker` with your own pattern; capture group 1 is the citation id. Version 0.1 defaulted to `[tc1]`: pass `citationMarker: /\[(tc\d+)\]/g` to keep that.
 - Runs only when you pass a non-empty `citations` index.
 
 `checkCitationCounts` is a separate, standalone check for `<number> <noun>` claims in cited sentences against each source's `rowCount`. It is not part of the gate.

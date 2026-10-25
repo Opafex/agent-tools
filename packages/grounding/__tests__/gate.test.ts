@@ -44,15 +44,15 @@ describe('runGroundingGate: fabricated identifiers', () => {
 
 describe('runGroundingGate: citation drift', () => {
   const citations: CitationIndex = {
-    tc4: { content: 'model order_items { id String } model invoice_lines { id String } model stock_levels { id String }' },
+    4: { content: 'model order_items { id String } model invoice_lines { id String } model stock_levels { id String }' },
   };
-  const text = 'Database schema includes users, accounts, sessions, and verification tokens [tc4].';
+  const text = 'Database schema includes users, accounts, sessions, and verification tokens [4].';
 
   it('fails when a cited sentence drifts from its source', () => {
     const r = runGroundingGate({ text, citations });
     const v = r.violations.find((x) => x.code === 'unsupported_citation');
     expect(v).toBeDefined();
-    expect(v?.code === 'unsupported_citation' && v.citation).toBe('tc4');
+    expect(v?.code === 'unsupported_citation' && v.citation).toBe('4');
     expect(r.status).toBe('fail');
   });
 
@@ -69,7 +69,7 @@ describe('runGroundingGate: citation drift', () => {
 
   it('honours a custom marker', () => {
     const r = runGroundingGate(
-      { text: text.replace('[tc4]', '<cite id="s1"/>'), citations: { s1: citations.tc4 as CitationIndex[string] } },
+      { text: text.replace('[4]', '<cite id="s1"/>'), citations: { s1: citations[4] as CitationIndex[string] } },
       { citationMarker: /<cite id="([^"]+)"\/>/ },
     );
     expect(r.violations.some((v) => v.code === 'unsupported_citation')).toBe(true);
@@ -109,7 +109,7 @@ describe('runGroundingGate: quantities (warning by default)', () => {
   });
 
   it('counts rows in citation content', () => {
-    const r = runGroundingGate({ text: 'Your table has 2 rows.', citations: { tc1: { content: evidence[0] } } });
+    const r = runGroundingGate({ text: 'Your table has 2 rows.', citations: { 1: { content: evidence[0] } } });
     expect(report(r, 'quantities')?.status).toBe('passed');
   });
 });
@@ -161,13 +161,13 @@ describe('runGroundingGate: shape', () => {
     // A citation index whose getter throws makes the citation check throw;
     // the other checks must still run.
     const hostile = {} as CitationIndex;
-    Object.defineProperty(hostile, 'tc1', {
+    Object.defineProperty(hostile, '1', {
       enumerable: true,
       get() {
         throw new Error('boom');
       },
     });
-    const r = runGroundingGate({ text: `Commit ${SHA} [tc1].`, citations: hostile });
+    const r = runGroundingGate({ text: `Commit ${SHA} [1].`, citations: hostile });
     expect(report(r, 'citations')?.status).toBe('error');
     expect(report(r, 'citations')?.error).toBe('boom');
     expect(report(r, 'contradictions')?.status).toBe('skipped');

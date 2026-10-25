@@ -2,7 +2,7 @@
  * Citation drift.
  *
  * Some agents mark each claim with the tool result it came from, such as
- * "The schema has three tables [tc4]." Checking that `[tc4]` exists is easy
+ * "The schema has three tables [4]." Checking that `[4]` exists is easy
  * and catches invented citation numbers. It does not catch the subtler
  * failure: the citation is real, but the sentence attached to it says things
  * the cited result does not contain. A typical case is an agent that reads a
@@ -32,8 +32,12 @@
 import type { CitationIndex } from './evidence.js';
 import { lower, splitSentences } from './text.js';
 
-/** The default citation marker: `[tc1]`, `[tc2]`, ... capturing `tc1`. */
-export const DEFAULT_CITATION_MARKER = /\[(tc\d+)\]/g;
+/**
+ * The default citation marker: `[1]`, `[2]`, ... capturing `1`. A bracket
+ * straight after a word character is an index (`rows[0]`), not a citation.
+ * Adjacent markers (`[1][2]`) each count.
+ */
+export const DEFAULT_CITATION_MARKER = /(?<!\w)\[(\d+)\]/g;
 
 export interface CitationOptions {
   /**

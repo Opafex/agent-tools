@@ -69,7 +69,7 @@ describe('checkWrites: invented references', () => {
   it('treats citation content as evidence', () => {
     const r = checkWrites({
       writes: addRows([{ receipt_ref: '4691-5504-8813' }]),
-      citations: { tc1: { content: 'Receipt number 4691-5504-8813' } },
+      citations: { 1: { content: 'Receipt number 4691-5504-8813' } },
     });
     expect(r.status).toBe('passed');
   });

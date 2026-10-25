@@ -11,7 +11,7 @@ import { lower } from './text.js';
 
 /**
  * One citable tool result. Keyed in a `CitationIndex` by the id your citation
- * marker captures (with the default marker, `[tc3]` cites the key `tc3`).
+ * marker captures (with the default marker, `[3]` cites the key `3`).
  */
 export interface CitationSource {
   /** The tool result text the agent saw, or the part of it you retained. */
