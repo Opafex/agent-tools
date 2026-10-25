@@ -1,0 +1,54 @@
+{
+  "name": "@opafex/retrieval-core",
+  "version": "0.1.0",
+  "description": "Storage-agnostic retrieval for RAG: chunking, IDF-weighted rare-term matching and a vector + lexical merge, over three small ports. Zero dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "check:dist": "node -e \"import('./dist/index.js').then(m=>{if(typeof m.retrieve!=='function')throw new Error('retrieve missing');console.log('dist loads in plain Node')})\"",
+    "prepublishOnly": "npm run build && npm test && npm run check:dist"
+  },
+  "keywords": [
+    "rag",
+    "retrieval",
+    "hybrid-search",
+    "bm25",
+    "idf",
+    "lexical-search",
+    "vector-search",
+    "chunking",
+    "embeddings",
+    "llm"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opafex/agent-tools.git",
+    "directory": "packages/retrieval-core"
+  },
+  "homepage": "https://github.com/opafex/agent-tools/tree/main/packages/retrieval-core",
+  "bugs": {
+    "url": "https://github.com/opafex/agent-tools/issues"
+  },
+  "author": "Opafex",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

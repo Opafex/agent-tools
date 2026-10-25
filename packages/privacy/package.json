@@ -1,0 +1,53 @@
+{
+  "name": "@opafex/privacy",
+  "version": "0.1.0",
+  "description": "PII redaction for logs and LLM payloads: same value, same token, so a redacted log is still debuggable. UK-aware, zero dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "check:dist": "node -e \"import('./dist/index.js').then(m=>{if(typeof m.redactText!=='function')throw new Error('redactText missing');console.log('dist loads in plain Node')})\"",
+    "prepublishOnly": "npm run build && npm test && npm run check:dist"
+  },
+  "keywords": [
+    "pii",
+    "redaction",
+    "gdpr",
+    "uk-gdpr",
+    "privacy",
+    "logging",
+    "llm",
+    "data-protection",
+    "anonymisation"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opafex/agent-tools.git",
+    "directory": "packages/privacy"
+  },
+  "homepage": "https://github.com/opafex/agent-tools/tree/main/packages/privacy",
+  "bugs": {
+    "url": "https://github.com/opafex/agent-tools/issues"
+  },
+  "author": "Opafex",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

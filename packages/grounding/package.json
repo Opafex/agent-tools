@@ -1,0 +1,53 @@
+{
+  "name": "@opafex/grounding",
+  "version": "0.1.0",
+  "description": "Deterministic checks that an LLM agent's prose is backed by its tool results: fabricated identifiers, citation drift, self-contradiction, unsupported counts and invented written values. Pure, zero dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "check:dist": "node -e \"import('./dist/index.js').then(m=>{if(typeof m.runGroundingGate!=='function')throw new Error('runGroundingGate missing');console.log('dist loads in plain Node')})\"",
+    "prepublishOnly": "npm run build && npm test && npm run check:dist"
+  },
+  "keywords": [
+    "llm",
+    "agents",
+    "grounding",
+    "hallucination",
+    "citations",
+    "tool-use",
+    "guardrails",
+    "evaluation",
+    "fact-checking"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/opafex/agent-tools.git",
+    "directory": "packages/grounding"
+  },
+  "homepage": "https://github.com/opafex/agent-tools/tree/main/packages/grounding",
+  "bugs": {
+    "url": "https://github.com/opafex/agent-tools/issues"
+  },
+  "author": "Opafex",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
