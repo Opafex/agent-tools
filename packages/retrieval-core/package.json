@@ -1,6 +1,6 @@
 {
   "name": "@opafex/retrieval-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Storage-agnostic retrieval for RAG: chunking, IDF-weighted rare-term matching and a vector + lexical merge, over three small ports. Zero dependencies.",
   "license": "MIT",
   "type": "module",

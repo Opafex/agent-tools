@@ -69,6 +69,8 @@ chunkDocument(markdown);    // [{ ordinal, heading, text }]: each passage labell
 
 `chunkDocument` reads markdown headings (`#` to `######`) and chunks each section separately, so a passage never straddles two headings. Convert Word headings, slide titles and sheet names to markdown headings first and every format keeps its structure.
 
+Version 0.1.0 added an extra chunk at the end of every text longer than one chunk: the last 200 characters again, starting mid-word. 0.1.1 stops at the end of the text. Re-chunk anything stored with 0.1.0 to drop those tails; they are short, so they can rank well on short questions.
+
 ## The pieces, separately
 
 Everything `retrieve` uses is exported and pure:

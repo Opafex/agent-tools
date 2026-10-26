@@ -43,6 +43,9 @@ export function chunkContent(
     }
 
     chunks.push(content.slice(start, end).trim());
+    // The text is used up. Stepping back by the overlap here would emit its last
+    // CHUNK_OVERLAP characters again as a chunk of their own.
+    if (end >= content.length) break;
 
     // Advance with overlap so context isn't lost at boundaries
     const nextStart = end - CHUNK_OVERLAP;

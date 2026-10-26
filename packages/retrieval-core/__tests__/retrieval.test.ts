@@ -231,6 +231,26 @@ describe('chunkContent', () => {
     expect(chunks[0]).toBe('a'.repeat(300));
   });
 
+  it('ends at the end of the text, with no repeated tail as an extra chunk', () => {
+    const text = Array.from({ length: 60 }, (_, i) => `Sentence number ${i} says something useful.`).join(' ');
+    expect(text.length).toBeGreaterThan(2000);
+    expect(text.length).toBeLessThan(3000);
+    const chunks = chunkContent(text, 2000);
+    expect(chunks).toHaveLength(2);
+    expect(text.endsWith(chunks[1])).toBe(true);
+  });
+
+  it('never emits a chunk that is only the end of the one before it', () => {
+    const text = Array.from({ length: 400 }, (_, i) => `Fact ${i} is stated here.`).join(' ');
+    for (let size = 300; size <= 3000; size += 137) {
+      const chunks = chunkContent(text, size);
+      expect(text.endsWith(chunks[chunks.length - 1]), `size ${size}`).toBe(true);
+      for (let i = 1; i < chunks.length; i++) {
+        expect(chunks[i - 1].endsWith(chunks[i]), `size ${size}, chunk ${i}`).toBe(false);
+      }
+    }
+  });
+
   it('always makes progress on text with no breaks at all', () => {
     const chunks = chunkContent('x'.repeat(5000), 1000);
     expect(chunks.length).toBeGreaterThan(4);
