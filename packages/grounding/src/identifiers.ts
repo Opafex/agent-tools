@@ -13,6 +13,9 @@
  * Method (deterministic, no model call):
  *   1. Extract identifier-shaped tokens from the prose: UUIDs, URLs, hex
  *      hashes of 7 to 40 characters, and opaque ids of 16 or more characters.
+ *      With `domains: true`, also bare web addresses written without a scheme
+ *      ("acme.co.uk", "www.acme.com/pricing"), which is how a reply usually
+ *      writes a website.
  *   2. Pass a token if it occurs in the evidence, or it is a URL on an allowed
  *      public host (general documentation the agent may cite unprompted).
  *   3. Report every other token.
@@ -24,7 +27,17 @@
 import { appearsInEvidence, buildEvidenceText, type CitationIndex } from './evidence.js';
 import { lower } from './text.js';
 
-export type IdentifierKind = 'sha' | 'uuid' | 'url' | 'long_id';
+export type IdentifierKind = 'sha' | 'uuid' | 'url' | 'domain' | 'long_id';
+
+/** Which optional token shapes to extract. Every option defaults to off. */
+export interface ExtractOptions {
+  /**
+   * Also extract bare domains ("acme.co.uk", "www.acme.com/pricing"). Off by
+   * default because it widens what an existing caller flags: turn it on per
+   * surface, and observe before enforcing.
+   */
+  domains?: boolean;
+}
 
 export interface UnbackedIdentifier {
   /** The token exactly as it appears in the prose. */
@@ -59,6 +72,8 @@ export interface IdentifierCheckInput {
    * URL.
    */
   allowedHosts?: Iterable<string>;
+  /** Also check bare domains; see `ExtractOptions.domains`. Default false. */
+  domains?: boolean;
 }
 
 /**
@@ -91,6 +106,42 @@ const UUID_RE = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`]+/g;
 const SHA_RE = /\b[0-9a-fA-F]{7,40}\b/g;
 const LONG_ID_RE = /\b[A-Za-z0-9_-]{16,}\b/g;
+/**
+ * A hostname written without a scheme, with an optional path. Whether it is a
+ * domain at all is decided by its last label (see `isDomainSuffix`), and the
+ * character before it (see `collectDomains`).
+ */
+const DOMAIN_RE = /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}\b(?:\/[^\s<>"'`)\]]*)?/gi;
+
+/**
+ * Generic top-level domains a website is commonly under. A last label outside
+ * this list and longer than two letters is read as a file extension or a word
+ * ("config.json", "Node.js", "next.config.mjs"), never as a domain.
+ */
+const GENERIC_TLDS = new Set([
+  'com', 'net', 'org', 'edu', 'gov', 'int', 'info', 'biz', 'name', 'pro', 'app', 'dev', 'cloud', 'tech',
+  'online', 'site', 'website', 'store', 'shop', 'agency', 'digital', 'studio', 'media', 'news', 'blog',
+  'global', 'group', 'company', 'solutions', 'services', 'consulting', 'partners', 'legal', 'law',
+  'finance', 'capital', 'health', 'care', 'email', 'live', 'life', 'world', 'space', 'xyz', 'design',
+  'build', 'works', 'tools', 'systems', 'network', 'software', 'ltd', 'llc', 'inc', 'london', 'scot',
+  'wales', 'cymru',
+]);
+
+/**
+ * Two-letter endings that are far more often file extensions than country
+ * domains in an agent's prose ("README.md", "build.sh", "main.py", "lib.rs").
+ * A real site under one of these goes unchecked: a miss, never a false alarm.
+ */
+const FILE_EXTENSIONS_2 = new Set(['md', 'sh', 'py', 'js', 'ts', 'rs', 'rb', 'pl', 'ps', 'so', 'mm', 'ml', 'cc', 'hh', 'db', 'gz', 'xz', 'tf', 'pm', 'vb', 'fs', 'kt']);
+
+/** Reserved names (RFC 2606, RFC 6761) used in examples, never anyone's site. */
+const RESERVED_DOMAIN_RE = /(?:^|\.)(?:example\.(?:com|net|org)|example|test|invalid|localhost)$/i;
+
+function isDomainSuffix(tld: string): boolean {
+  const t = lower(tld);
+  if (t.length === 2) return !FILE_EXTENSIONS_2.has(t);
+  return GENERIC_TLDS.has(t);
+}
 
 /** Shorter than this and ordinary English words would match. */
 const MIN_LONG_ID_LEN = 16;
@@ -101,7 +152,7 @@ export function checkIdentifiers(input: IdentifierCheckInput): IdentifierCheckRe
   if (!text || typeof text !== 'string') {
     return { status: 'skipped', scanned: 0, unbacked: [] };
   }
-  const tokens = extractIdentifierTokens(text);
+  const tokens = extractIdentifierTokens(text, { domains: input.domains === true });
   if (tokens.length === 0) {
     return { status: 'skipped', scanned: 0, unbacked: [] };
   }
@@ -111,6 +162,7 @@ export function checkIdentifiers(input: IdentifierCheckInput): IdentifierCheckRe
   const unbacked: UnbackedIdentifier[] = [];
   for (const tok of tokens) {
     if (tok.kind === 'url' && isAllowedHost(tok.token, hosts)) continue;
+    if (tok.kind === 'domain' && isAllowedHost(`https://${tok.token}`, hosts)) continue;
     if (appearsInEvidence(tok.token, evidence)) continue;
     if (unbacked.length < MAX_REPORTED) unbacked.push(tok);
   }
@@ -127,7 +179,7 @@ export function checkIdentifiers(input: IdentifierCheckInput): IdentifierCheckRe
  * reported once, and a character range claimed by one shape is never claimed
  * again by another.
  */
-export function extractIdentifierTokens(text: string): UnbackedIdentifier[] {
+export function extractIdentifierTokens(text: string, options: ExtractOptions = {}): UnbackedIdentifier[] {
   const seen = new Set<string>();
   const claimed: Array<[number, number]> = [];
   const out: UnbackedIdentifier[] = [];
@@ -156,8 +208,35 @@ export function extractIdentifierTokens(text: string): UnbackedIdentifier[] {
     }
   };
 
+  // A bare domain is claimed after URLs (so the host inside a URL is never a
+  // second token) and before hashes and long ids (so "abcdef1234.com" is a
+  // domain, not a hash).
+  const collectDomains = (): void => {
+    for (const match of text.matchAll(DOMAIN_RE)) {
+      if (typeof match.index !== 'number') continue;
+      const start = match.index;
+      // Part of something longer: a path, a dotted name, a file path, a URL
+      // the URL pass did not claim. "@" is allowed, so an email's domain counts.
+      const before = start > 0 ? text[start - 1] : '';
+      if (before && /[A-Za-z0-9._\/:-]/.test(before)) continue;
+      const token = trimUrlToken(match[0]);
+      const host = token.split('/')[0];
+      const labels = host.split('.');
+      if (!isDomainSuffix(labels[labels.length - 1])) continue;
+      if (RESERVED_DOMAIN_RE.test(host)) continue;
+      const end = start + token.length;
+      if (overlapsClaimed(start, end)) continue;
+      claimed.push([start, end]);
+      const key = lower(token);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ token, kind: 'domain', index: start, excerpt: makeExcerpt(text, start, token.length) });
+    }
+  };
+
   collect(UUID_RE, 'uuid');
   collect(URL_RE, 'url');
+  if (options.domains) collectDomains();
   collect(SHA_RE, 'sha');
   collect(LONG_ID_RE, 'long_id');
 

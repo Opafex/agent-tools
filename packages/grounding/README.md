@@ -48,6 +48,18 @@ runGroundingGate({
 - URLs on well-known public documentation hosts (GitHub, MDN, npm and similar; see `DEFAULT_ALLOWED_HOSTS`) need no evidence. Pass `allowedHosts` to change the list, or `[]` to require evidence for every URL.
 - Punctuation after a URL is not part of it: `([example.com](https://example.com)).` checks `https://example.com`. A closing bracket is kept only when the URL opened one.
 - Long English words and compounds ("documentation", "well-designed-home", "London-based") are not treated as ids.
+- **Bare domains** (`acme.co.uk`, `www.acme.com/pricing`, the domain of `jo@acme.com`) are checked too when you pass `domains: true` (off by default). A last label that reads as a file extension (`README.md`, `next.config.mjs`, `Node.js`), reserved example names (`example.com`, `*.test`, `localhost`) and a domain inside a path or after a key are not domains.
+
+### Echoes: the agent backing its own invention
+
+A tool that repeats its input defeats a presence check: the agent invents `acme-widgets.co.uk`, passes it to a lookup, and the result ("checked `acme-widgets.co.uk`: no match") now "contains" it. Build each call's evidence with `stripEchoedIdentifiers(result, args)`: it masks every identifier the result repeated from that call's own arguments, so a value counts only if a tool returned it without having been given it.
+
+```ts
+const evidence = calls.map((c) => stripEchoedIdentifiers(c.result, c.args));
+runGroundingGate({ text, evidence }, { domains: true });
+```
+
+A token is masked only where it stands alone, so a longer value the tool really returned (`https://www.acme.com/pricing` from a search for `acme.com`, `jo@acme.com` from a mailbox read) still backs itself, and a value another call returned is untouched.
 
 ### Citation drift (`unsupported_citation`, error)
 
@@ -141,7 +153,7 @@ Input:
 | `emissionIndex` | `number` | This output's position in the run. Default 0. |
 | `writes` | `{ tool, values, executed? }[]` | Write calls to check. `values` is a record or an array of records. |
 
-Options: `citationMarker` (RegExp), `allowedHosts` (iterable of hostnames), `severity` (per-check override), `skip` (check names not to run).
+Options: `citationMarker` (RegExp), `allowedHosts` (iterable of hostnames), `domains` (also check bare domains, default false), `severity` (per-check override), `skip` (check names not to run).
 
 Result:
 
@@ -160,14 +172,14 @@ Each check runs in its own try/catch. One that throws is reported with status `e
 
 Each check is also exported on its own, with a `status: 'passed' | 'failed' | 'skipped'` result:
 
-- `checkIdentifiers({ text, evidence?, citations?, allowedHosts? })`
+- `checkIdentifiers({ text, evidence?, citations?, allowedHosts?, domains? })`
 - `checkCitations(text, citations, { marker? })`
 - `checkCitationCounts(text, citations, { marker? })`
 - `checkContradictions(text, { priorFacts?, emissionIndex? })`
 - `checkQuantities({ text, evidence? })`
 - `checkWrites({ writes?, evidence?, citations? })`
 
-Lower-level helpers: `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER` and `DEFAULT_SEVERITY`.
+Lower-level helpers: `stripEchoedIdentifiers`, `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER` and `DEFAULT_SEVERITY`.
 
 ## Limits
 

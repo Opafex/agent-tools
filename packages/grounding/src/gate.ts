@@ -64,6 +64,11 @@ export interface GroundingGateOptions {
   citationMarker?: RegExp;
   /** URL hosts that need no evidence; see `DEFAULT_ALLOWED_HOSTS`. */
   allowedHosts?: Iterable<string>;
+  /**
+   * Also check bare domains ("acme.co.uk") as identifiers. Default false.
+   * Turn it on per surface, and observe before enforcing.
+   */
+  domains?: boolean;
   /** Override the severity of any check. */
   severity?: Partial<Record<CheckName, Severity>>;
   /** Checks not to run. */
@@ -174,6 +179,7 @@ export function runGroundingGate(
       evidence: input.evidence,
       citations: input.citations,
       allowedHosts: options.allowedHosts,
+      domains: options.domains === true,
     });
     for (const u of r.unbacked) {
       violations.push({

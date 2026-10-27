@@ -15,6 +15,7 @@ export {
   extractIdentifierTokens,
   trimUrlToken,
   DEFAULT_ALLOWED_HOSTS,
+  type ExtractOptions,
   type IdentifierCheckInput,
   type IdentifierCheckResult,
   type IdentifierKind,
@@ -57,6 +58,8 @@ export {
   type WriteCheckResult,
   type WrittenTokenKind,
 } from './writes.js';
+
+export { stripEchoedIdentifiers, ECHO_MASK } from './echoes.js';
 
 export {
   appearsInEvidence,
