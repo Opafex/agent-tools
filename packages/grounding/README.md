@@ -49,6 +49,7 @@ runGroundingGate({
 - Punctuation after a URL is not part of it: `([example.com](https://example.com)).` checks `https://example.com`. A closing bracket is kept only when the URL opened one.
 - Long English words and compounds ("documentation", "well-designed-home", "London-based") are not treated as ids.
 - **Bare domains** (`acme.co.uk`, `www.acme.com/pricing`, the domain of `jo@acme.com`) are checked too when you pass `domains: true` (off by default). A last label that reads as a file extension (`README.md`, `next.config.mjs`, `Node.js`), reserved example names (`example.com`, `*.test`, `localhost`) and a domain inside a path or after a key are not domains.
+- **Email addresses** are checked WHOLE when you pass `emails: true` (off by default): `jane.doe@acme.co.uk` is backed only by evidence containing that address, never by evidence that merely mentions `acme.co.uk`. That is the guessed `first.last@firm` address an agent writes for a person no tool found. The gate's message for one says never to guess an address.
 
 ### Echoes: the agent backing its own invention
 
@@ -153,7 +154,7 @@ Input:
 | `emissionIndex` | `number` | This output's position in the run. Default 0. |
 | `writes` | `{ tool, values, executed? }[]` | Write calls to check. `values` is a record or an array of records. |
 
-Options: `citationMarker` (RegExp), `allowedHosts` (iterable of hostnames), `domains` (also check bare domains, default false), `severity` (per-check override), `skip` (check names not to run).
+Options: `citationMarker` (RegExp), `allowedHosts` (iterable of hostnames), `domains` (also check bare domains, default false), `emails` (also check email addresses whole, default false), `severity` (per-check override), `skip` (check names not to run).
 
 Result:
 
@@ -172,7 +173,7 @@ Each check runs in its own try/catch. One that throws is reported with status `e
 
 Each check is also exported on its own, with a `status: 'passed' | 'failed' | 'skipped'` result:
 
-- `checkIdentifiers({ text, evidence?, citations?, allowedHosts?, domains? })`
+- `checkIdentifiers({ text, evidence?, citations?, allowedHosts?, domains?, emails? })`
 - `checkCitations(text, citations, { marker? })`
 - `checkCitationCounts(text, citations, { marker? })`
 - `checkContradictions(text, { priorFacts?, emissionIndex? })`

@@ -69,6 +69,12 @@ export interface GroundingGateOptions {
    * Turn it on per surface, and observe before enforcing.
    */
   domains?: boolean;
+  /**
+   * Also check email addresses, WHOLE (local part included). Default false.
+   * A guessed `first.last@firm.co.uk` is unbacked even when `firm.co.uk` is in
+   * the evidence.
+   */
+  emails?: boolean;
   /** Override the severity of any check. */
   severity?: Partial<Record<CheckName, Severity>>;
   /** Checks not to run. */
@@ -180,6 +186,7 @@ export function runGroundingGate(
       citations: input.citations,
       allowedHosts: options.allowedHosts,
       domains: options.domains === true,
+      emails: options.emails === true,
     });
     for (const u of r.unbacked) {
       violations.push({
@@ -188,10 +195,14 @@ export function runGroundingGate(
         token: u.token,
         kind: u.kind,
         excerpt: u.excerpt,
-        message:
-          `The output mentions ${u.kind} \`${u.token}\` but it does not appear in any tool result. ` +
-          `Remove it, replace it with a value a tool actually returned, or mark it as unverified. ` +
-          `Context: "${u.excerpt}"`,
+        message: u.kind === 'email'
+          // An address is never "unverified but plausible": a wrong one emails a stranger.
+          ? `The output gives the email address \`${u.token}\` but no tool result contains it. ` +
+            `Never guess an address: give one a tool actually returned, or none. ` +
+            `Context: "${u.excerpt}"`
+          : `The output mentions ${u.kind} \`${u.token}\` but it does not appear in any tool result. ` +
+            `Remove it, replace it with a value a tool actually returned, or mark it as unverified. ` +
+            `Context: "${u.excerpt}"`,
       });
     }
     return { status: r.status, scanned: r.scanned, findings: r.unbacked.length };

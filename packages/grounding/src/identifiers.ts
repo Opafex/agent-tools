@@ -15,7 +15,11 @@
  *      hashes of 7 to 40 characters, and opaque ids of 16 or more characters.
  *      With `domains: true`, also bare web addresses written without a scheme
  *      ("acme.co.uk", "www.acme.com/pricing"), which is how a reply usually
- *      writes a website.
+ *      writes a website. With `emails: true`, also email addresses, matched
+ *      WHOLE: `jane.doe@acme.co.uk` is backed only by evidence holding that
+ *      address, never by evidence that merely mentions `acme.co.uk`. That is
+ *      the guessed address ("first.last@firm") an agent writes for a person it
+ *      found nowhere.
  *   2. Pass a token if it occurs in the evidence, or it is a URL on an allowed
  *      public host (general documentation the agent may cite unprompted).
  *   3. Report every other token.
@@ -27,7 +31,7 @@
 import { appearsInEvidence, buildEvidenceText, type CitationIndex } from './evidence.js';
 import { lower } from './text.js';
 
-export type IdentifierKind = 'sha' | 'uuid' | 'url' | 'domain' | 'long_id';
+export type IdentifierKind = 'sha' | 'uuid' | 'url' | 'domain' | 'email' | 'long_id';
 
 /** Which optional token shapes to extract. Every option defaults to off. */
 export interface ExtractOptions {
@@ -37,6 +41,11 @@ export interface ExtractOptions {
    * surface, and observe before enforcing.
    */
   domains?: boolean;
+  /**
+   * Also extract email addresses, checked whole (local part included). Off by
+   * default for the same reason as `domains`.
+   */
+  emails?: boolean;
 }
 
 export interface UnbackedIdentifier {
@@ -74,6 +83,8 @@ export interface IdentifierCheckInput {
   allowedHosts?: Iterable<string>;
   /** Also check bare domains; see `ExtractOptions.domains`. Default false. */
   domains?: boolean;
+  /** Also check email addresses whole; see `ExtractOptions.emails`. Default false. */
+  emails?: boolean;
 }
 
 /**
@@ -106,6 +117,8 @@ const UUID_RE = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[
 const URL_RE = /\bhttps?:\/\/[^\s<>"'`]+/g;
 const SHA_RE = /\b[0-9a-fA-F]{7,40}\b/g;
 const LONG_ID_RE = /\b[A-Za-z0-9_-]{16,}\b/g;
+/** An email address: a local part, "@", and a dotted host ending in a letter label. */
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}\b/g;
 /**
  * A hostname written without a scheme, with an optional path. Whether it is a
  * domain at all is decided by its last label (see `isDomainSuffix`), and the
@@ -152,7 +165,7 @@ export function checkIdentifiers(input: IdentifierCheckInput): IdentifierCheckRe
   if (!text || typeof text !== 'string') {
     return { status: 'skipped', scanned: 0, unbacked: [] };
   }
-  const tokens = extractIdentifierTokens(text, { domains: input.domains === true });
+  const tokens = extractIdentifierTokens(text, { domains: input.domains === true, emails: input.emails === true });
   if (tokens.length === 0) {
     return { status: 'skipped', scanned: 0, unbacked: [] };
   }
@@ -208,6 +221,31 @@ export function extractIdentifierTokens(text: string, options: ExtractOptions = 
     }
   };
 
+  // An email is claimed first, whole, so neither the domain after its "@" nor a
+  // long run in its local part is checked on its own: the address is the claim.
+  const collectEmails = (): void => {
+    for (const match of text.matchAll(EMAIL_RE)) {
+      if (typeof match.index !== 'number') continue;
+      let token = match[0];
+      let start = match.index;
+      // A leading full stop or dash is punctuation, not part of the address.
+      while (token.length > 0 && /[._%+-]/.test(token[0])) {
+        token = token.slice(1);
+        start += 1;
+      }
+      const at = token.indexOf('@');
+      if (at < 1) continue;
+      if (RESERVED_DOMAIN_RE.test(token.slice(at + 1))) continue;
+      const end = start + token.length;
+      if (overlapsClaimed(start, end)) continue;
+      claimed.push([start, end]);
+      const key = lower(token);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ token, kind: 'email', index: start, excerpt: makeExcerpt(text, start, token.length) });
+    }
+  };
+
   // A bare domain is claimed after URLs (so the host inside a URL is never a
   // second token) and before hashes and long ids (so "abcdef1234.com" is a
   // domain, not a hash).
@@ -234,6 +272,7 @@ export function extractIdentifierTokens(text: string, options: ExtractOptions = 
     }
   };
 
+  if (options.emails) collectEmails();
   collect(UUID_RE, 'uuid');
   collect(URL_RE, 'url');
   if (options.domains) collectDomains();

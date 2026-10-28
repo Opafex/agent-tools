@@ -43,8 +43,8 @@ function hostOf(url: string): string | null {
 /**
  * One tool call's result with the identifiers it echoed from its own arguments
  * masked, as text ready to use as evidence; `null` when the result cannot be
- * serialised. Bare domains in the arguments are masked too, whether or not
- * your identifier check extracts them.
+ * serialised. Bare domains and email addresses in the arguments are masked
+ * too, whether or not your identifier check extracts them.
  */
 export function stripEchoedIdentifiers(result: unknown, args: unknown): string | null {
   const text = serialiseEvidence(result);
@@ -55,9 +55,11 @@ export function stripEchoedIdentifiers(result: unknown, args: unknown): string |
   // Longest first, so a URL is masked whole before the domain inside it is
   // considered on its own.
   const found = new Set<string>();
-  for (const t of extractIdentifierTokens(argText, { domains: true })) {
+  for (const t of extractIdentifierTokens(argText, { domains: true, emails: true })) {
     const token = lower(t.token);
     found.add(token);
+    // An address argument also comes back as its domain alone.
+    if (t.kind === 'email') found.add(token.slice(token.indexOf('@') + 1));
     // A URL argument is also echoed as its bare host ("https://www.acme.com/a"
     // comes back as "acme.com"), and a bare domain with a path as its host.
     const host = t.kind === 'url' ? hostOf(token) : t.kind === 'domain' ? token.split('/')[0] : null;

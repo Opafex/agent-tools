@@ -1,6 +1,6 @@
 {
   "name": "@opafex/grounding",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Deterministic checks that an LLM agent's prose is backed by its tool results: fabricated identifiers, citation drift, self-contradiction, unsupported counts and invented written values. Pure, zero dependencies.",
   "license": "MIT",
   "type": "module",
