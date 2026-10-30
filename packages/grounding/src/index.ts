@@ -103,3 +103,14 @@ export {
   type SystemEvidence,
   type TranscriptTurn,
 } from './transcript.js';
+
+export {
+  checkFigures,
+  collectEvidenceFigures,
+  extractFigureClaims,
+  summariseFigureEvidence,
+  type FigureCheckInput,
+  type FigureCheckResult,
+  type FigureKind,
+  type UnsupportedFigure,
+} from './figures.js';

@@ -16,9 +16,10 @@ import { checkContradictions, type FactPair } from './contradictions.js';
 import type { CitationIndex } from './evidence.js';
 import { checkIdentifiers, type IdentifierKind } from './identifiers.js';
 import { checkQuantities } from './quantities.js';
+import { checkFigures, type FigureKind } from './figures.js';
 import { checkWrites, type WriteCall, type WrittenTokenKind } from './writes.js';
 
-export type CheckName = 'identifiers' | 'citations' | 'contradictions' | 'quantities' | 'writes';
+export type CheckName = 'identifiers' | 'citations' | 'contradictions' | 'quantities' | 'writes' | 'figures';
 
 export type Severity = 'error' | 'warning';
 
@@ -34,6 +35,7 @@ export const DEFAULT_SEVERITY: Readonly<Record<CheckName, Severity>> = Object.fr
   contradictions: 'error',
   quantities: 'warning',
   writes: 'warning',
+  figures: 'warning',
 });
 
 export interface GroundingGateInput {
@@ -75,6 +77,13 @@ export interface GroundingGateOptions {
    * the evidence.
    */
   emails?: boolean;
+  /**
+   * Also check money, percentages and reference codes against the evidence
+   * (`checkFigures`). Default false: it widens what an existing caller flags,
+   * so turn it on per surface. The evidence must hold what the agent read in
+   * the conversation, or a figure it legitimately carried forward is reported.
+   */
+  figures?: boolean;
   /** Override the severity of any check. */
   severity?: Partial<Record<CheckName, Severity>>;
   /** Checks not to run. */
@@ -113,6 +122,12 @@ export type GroundingViolation =
       noun: string;
       context: string;
       evidenceCounts: number[];
+    })
+  | (ViolationBase & {
+      code: 'unsupported_figure';
+      token: string;
+      kind: FigureKind;
+      context: string;
     })
   | (ViolationBase & {
       code: 'ungrounded_write_value';
@@ -297,6 +312,29 @@ export function runGroundingGate(
     }
     return { status: r.status, scanned: r.scanned, findings: r.ungrounded.length };
   });
+
+  if (options.figures === true) run('figures', () => {
+    const evidence = [
+      ...(input.evidence ?? []),
+      ...Object.values(input.citations ?? {}).map((s) => s?.content),
+    ];
+    const r = checkFigures({ text, evidence });
+    for (const f of r.unsupported) {
+      const what = f.kind === 'money' ? 'amount' : f.kind === 'percent' ? 'percentage' : 'reference';
+      violations.push({
+        code: 'unsupported_figure',
+        severity: severity.figures,
+        token: f.token,
+        kind: f.kind,
+        context: f.context,
+        message:
+          `The output gives the ${what} ${f.token}, but no tool result holds it and it is not a total or share ` +
+          `of figures that do. Use the figure the tools returned, or remove it. Context: "${f.context}"`,
+      });
+    }
+    return { status: r.status, scanned: r.scanned, findings: r.unsupported.length };
+  });
+  else reports.push({ check: 'figures', status: 'disabled', scanned: 0, findings: 0 });
 
   return {
     status: violations.some((v) => v.severity === 'error') ? 'fail' : 'pass',

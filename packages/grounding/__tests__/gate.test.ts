@@ -151,7 +151,9 @@ describe('runGroundingGate: writes (warning by default)', () => {
 describe('runGroundingGate: shape', () => {
   it('returns one report per check, in a fixed order', () => {
     const r = runGroundingGate({ text: '' });
-    expect(r.reports.map((x) => x.check)).toEqual(['identifiers', 'citations', 'contradictions', 'quantities', 'writes']);
+    expect(r.reports.map((x) => x.check)).toEqual(['identifiers', 'citations', 'contradictions', 'quantities', 'writes', 'figures']);
+    // figures is opt-in: listed, and disabled unless asked for.
+    expect(r.reports.at(-1)?.status).toBe('disabled');
     expect(r.violations).toHaveLength(0);
     expect(r.newFacts).toHaveLength(0);
     expect(r.status).toBe('pass');
