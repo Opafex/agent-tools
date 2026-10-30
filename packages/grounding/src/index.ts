@@ -67,3 +67,39 @@ export {
   type CitationIndex,
   type CitationSource,
 } from './evidence.js';
+
+export {
+  checkToolArguments,
+  identifierArguments,
+  argumentKind,
+  valueInEvidence,
+  ungroundedArgumentMessage,
+  type ArgumentCheckOptions,
+  type ArgumentCheckResult,
+  type ArgumentKind,
+  type ToolCall,
+  type UngroundedArgument,
+} from './arguments.js';
+
+export {
+  checkAmbiguousTarget,
+  ambiguousTargetMessage,
+  type AmbiguityCheckOptions,
+  type AmbiguityCheckResult,
+  type AmbiguousTarget,
+} from './ambiguity.js';
+
+export {
+  checkRepeatedCall,
+  canonicalArgs,
+  type PastCall,
+  type RepeatCheckOptions,
+  type RepeatCheckResult,
+} from './repeats.js';
+
+export {
+  argumentEvidence,
+  type EvidenceOptions,
+  type SystemEvidence,
+  type TranscriptTurn,
+} from './transcript.js';
