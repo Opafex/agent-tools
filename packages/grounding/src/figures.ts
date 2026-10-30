@@ -55,6 +55,13 @@ export interface FigureCheckInput {
   text: string;
   /** Tool results (and anything else that may back a claim, such as the user's own messages). */
   evidence?: readonly unknown[];
+  /**
+   * What to do when the evidence holds no number at all. `skip` (the default) treats it as
+   * "nothing to compare against", which suits a caller whose evidence may be incomplete.
+   * `report` treats it as the answer: no tool returned a figure, so every figure in the prose is
+   * unsupported. A turn that read nothing and stated amounts is the case `report` exists for.
+   */
+  whenNoEvidence?: 'skip' | 'report';
 }
 
 export interface FigureCheckResult {
@@ -185,7 +192,7 @@ export function checkFigures(input: FigureCheckInput): FigureCheckResult {
   const claims = extractFigureClaims(input.text);
   if (claims.length === 0) return { status: 'skipped', scanned: 0, unsupported: [] };
   const ev = collectEvidenceFigures(input.evidence);
-  if (ev.numbers.size === 0 && !claims.some((c) => c.kind === 'reference')) {
+  if (ev.numbers.size === 0 && input.whenNoEvidence !== 'report' && !claims.some((c) => c.kind === 'reference')) {
     return { status: 'skipped', scanned: claims.length, unsupported: [] };
   }
 

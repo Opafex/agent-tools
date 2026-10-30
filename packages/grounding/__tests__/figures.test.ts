@@ -72,6 +72,11 @@ describe('checkFigures', () => {
     expect(checkFigures({ text: 'It costs £50.', evidence: [] }).status).toBe('skipped');
   });
 
+  it('reports every figure when asked to, if the evidence holds none', () => {
+    const r = checkFigures({ text: 'BrightLight Electrical (£3,250) and GreenClean Waste (£4,340).', evidence: ['nothing read'], whenNoEvidence: 'report' });
+    expect(r.unsupported.map((u) => u.token)).toEqual(['£3,250', '£4,340']);
+  });
+
   it('still reports an invented reference code when the evidence holds no numbers', () => {
     expect(checkFigures({ text: 'See INV-9999.', evidence: ['no figures here'] }).unsupported.map((u) => u.token)).toEqual(['INV-9999']);
   });
