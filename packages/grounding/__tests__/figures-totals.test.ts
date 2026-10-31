@@ -91,4 +91,14 @@ describe('a later turn checks shares, counts and days against the summary alone'
     expect(later('Calder Lift Services (£7,985.50) is 76% of what is overdue; CLS-20418 is 31 days overdue, 2 of the 4.')).toEqual([]);
     expect(later('Calder Lift Services (£7,985.50) is 64% of what is overdue; it is 3 of the 4.')).toEqual(['64%', '3 of the 4']);
   });
+
+  it('knows which total a named group is, with only the summary to go on', () => {
+    const summary = summariseFigureEvidence(EVIDENCE);
+    const later = (text: string) => checkFigures({ text, evidence: [summary] }).unsupported.map((u) => u.token);
+    expect(later('Pay CLS-20418 (£4,860) first; Calder Lift Services is 76% of what is overdue.')).toEqual([]);
+    expect(later('Pay CLS-20418 (£4,860) first; Calder Lift Services is 64% of what is overdue.')).toEqual(['64%']);
+    // As a chat surface passes it: the summary inside a longer text, with the user's message after it.
+    const inText = `[Tool evidence]\nFigures: ${summary}\nWhich should we pay first?`;
+    expect(checkFigures({ text: 'Pay CLS-20418 (£4,860) first; Calder Lift Services is 76% of what is overdue.', evidence: [inText] }).unsupported).toEqual([]);
+  });
 });

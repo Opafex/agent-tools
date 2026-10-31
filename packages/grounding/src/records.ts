@@ -101,11 +101,38 @@ export function collectRecordFacts(evidence: readonly unknown[] | undefined): Re
   for (const item of evidence ?? []) {
     const text = serialiseEvidence(item) ?? '';
     for (const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) facts.dates.add(`${m[1]}-${m[2]}-${m[3]}`);
+    readNamedLine(text, facts);
     const lists: Rec[][] = [];
     for (const v of parsedValues(item)) collectArrays(v, 0, lists);
     for (const recs of lists) readList(recs, facts);
   }
   return facts;
+}
+
+/**
+ * The `named:` line `summariseFigureEvidence` writes (`named: calder lift services £7985.50;
+ * overdue £10488.30 £7985.50`), so a later turn, which has the summary and not the records, still
+ * knows which total a sentence naming a group is about.
+ */
+const NAMED_LINE_RE = /\bnamed:(.*?)(?=\s(?:totals|counts|dates):|$)/m;
+function readNamedLine(text: string, facts: RecordFacts): void {
+  const line = text.match(NAMED_LINE_RE)?.[1];
+  if (!line) return;
+  for (const entry of line.split(';')) {
+    const m = entry.trim().match(/^(.+?)((?:\s+[£€$]-?[\d.]+)+)$/);
+    if (!m) continue;
+    for (const raw of m[2].trim().split(/\s+/)) {
+      const n = Number(raw.replace(/[£€$]/g, ''));
+      if (Number.isFinite(n)) addNamed(facts.namedTotals, m[1], Math.round(n * 100));
+    }
+  }
+}
+
+/** The `named:` line for a summary: each group's name and its totals, bounded. */
+export function namedLine(facts: RecordFacts, maxNames = 40): string {
+  const entries = [...facts.namedTotals.entries()].slice(0, maxNames)
+    .map(([name, sums]) => `${name.replace(/[;\n]/g, ' ')} ${[...sums].map((v) => `£${(v / 100).toFixed(2)}`).join(' ')}`);
+  return entries.length ? `named: ${entries.join('; ')}` : '';
 }
 
 function readList(recs: Rec[], facts: RecordFacts): void {

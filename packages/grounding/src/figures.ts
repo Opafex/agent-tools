@@ -42,7 +42,7 @@
 
 import { contextWindow } from './text.js';
 import { serialiseEvidence } from './evidence.js';
-import { collectRecordFacts, type RecordFacts } from './records.js';
+import { collectRecordFacts, namedLine, type RecordFacts } from './records.js';
 
 export type FigureKind = 'money' | 'percent' | 'reference' | 'count' | 'date' | 'days';
 
@@ -483,6 +483,9 @@ export function summariseFigureEvidence(evidence: readonly unknown[] | undefined
   if (totals.length) parts.push(`totals: ${totals.map(gbp).join(' ')}`);
   if (rec.counts.size) parts.push(`counts: ${[...rec.counts].join(' ')}`);
   if (rec.dates.size) parts.push(`dates: ${[...rec.dates].join(' ')}`);
+  // Last, so a long summary loses it first: which total a named group is.
+  const named = namedLine(rec);
+  if (named) parts.push(named);
   const out = parts.join(' ');
   return out.length > MAX_SUMMARY_CHARS ? out.slice(0, out.lastIndexOf(' ', MAX_SUMMARY_CHARS)) : out;
 }
