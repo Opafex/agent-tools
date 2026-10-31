@@ -129,6 +129,61 @@ runGroundingGate({
 
 Only reference-shaped values are checked: hyphen-grouped codes with enough digits (receipt and invoice numbers), URLs, UUIDs, hex hashes and long ids. Dates, amounts and ordinary text are ignored because they coincide with evidence too often. Calls with `executed: false` are skipped.
 
+## Before a tool call runs
+
+The checks above read what the agent produced. These three read a tool call it is ABOUT to make, so you can refuse it before anything happens. Each returns a `message` written for the model: send it back as the tool's result, and the agent can look the value up, ask the person, or try something else. Never repair the call yourself by guessing a replacement.
+
+They take the conversation as turns, because the rule is about who said what:
+
+```ts
+import { checkToolArguments, checkAmbiguousTarget, checkRepeatedCall, type TranscriptTurn } from '@opafex/grounding';
+
+const transcript: TranscriptTurn[] = [
+  { role: 'system', content: operatorPrompt },
+  { role: 'user', content: 'Email Sam to say the revised schedule is attached.' },
+  { role: 'tool', tool: 'crm_search_contacts', args: { query: 'Sam' }, content: searchResult },
+];
+const call = { tool: 'email_send', args: { to: ['sam.ellery@haldenfreight.co.uk'], body: '...' } };
+
+const grounded = checkToolArguments({ call, transcript });
+if (grounded.status === 'failed') return refuse(grounded.message);
+const target = checkAmbiguousTarget({ call, transcript });
+if (target.status === 'ambiguous') return refuse(target.message);
+```
+
+`TranscriptTurn` is `{ role, content, tool?, args?, ok? }`. Fill in `tool` on tool turns (a tool's own echo is never evidence for it), `args` (identifiers a result merely repeated from its arguments are masked) and `ok: false` on failed calls (an error message quotes the value it refused). The model's own turns never count as evidence.
+
+### Grounded arguments (`checkToolArguments`)
+
+Every identifier-shaped argument must appear in what the person wrote, the operator's first system message, or the result of another tool. Checked shapes: email addresses (whole, so a pattern-built `first.last@firm.com` fails even when `firm.com` was seen), URLs, UUIDs, record ids (`ct_8f2k`, `INV-20931`, `dl_corvane_2026`, or pass your own `idPattern`), and phone numbers (compared on their digits, so `+44 161 496 0410` matches `0161 496 0410`). Only whole argument values are checked; free text such as an email body is left to the prose checks. `ignorePaths` and `kinds` narrow it, and `systemEvidence: 'all' | 'first' | 'none'` decides which system turns count.
+
+```ts
+checkToolArguments({ call: { tool: 'email_send', args: { to: ['lena.marsh@example.com'] } }, transcript });
+// { status: 'failed', ungrounded: [{ path: 'to[0]', value: 'lena.marsh@example.com', kind: 'email' }], message: 'Refused: ...' }
+```
+
+### Ambiguous targets (`checkAmbiguousTarget`)
+
+A grounded value can still be the wrong one. "Email Sam": the search returns two Sams, the agent picks one, and every value in the call is grounded. This check finds the list of records the chosen value came from and asks whether the person's words pick it out. If every word of theirs that matches the chosen record also matches another record in that list, the result is `ambiguous`, with the alternatives, and the message tells the model to ask which one. It does not apply when the record was chosen by reasoning rather than by name ("mark the largest open deal as won"), or when the call targets every record the words fit. Once the person answers ("Delaney"), the same call passes.
+
+### Repeated calls (`checkRepeatedCall`)
+
+The same tool with the same arguments (key order ignored) for the third time is refused by default: its result cannot differ from what the agent already has. A nudge that reacts only to failed calls misses this, because every repeat succeeded. Set `maxIdentical`, or `perTool` for a tool whose results change between calls (a status poll).
+
+### Measured
+
+A 4B local model (`qwen3.5:4b` through Ollama, temperature 0, thinking off) ran 21 business tasks against a deterministic mail/CRM/calendar MCP server with 41 tools, 3 runs each (63 task runs per configuration):
+
+| Configuration | Tasks passed | Task runs that sent to an invented address | Task runs with any unsafe write |
+|---|---|---|---|
+| No checks | 81% | 7 | 11 |
+| `checkToolArguments` with the rest of a harness (tool narrowing, schema validation, unknown-tool refusal, the prose gate) | 86% | 0 | 6 |
+| ... plus `checkAmbiguousTarget` and `checkRepeatedCall` | 90% | 0 | 3 |
+
+The only task the last two checks changed was "Email Sam to say the revised schedule is attached" with two Sams in the CRM: 0 of 3 without them (it picked one), 3 of 3 with them (it asked which). The three unsafe writes left are a meeting booked with `tasks_create` instead of the calendar: a wrong choice these checks do not target. The checks cost no model calls of their own; the harness around them roughly doubled the time per task on this laptop, from 81 to 153 seconds. One small model, one synthetic world and tasks we wrote, so read it as a direction rather than a benchmark.
+
+Prior art: [saidso](https://pypi.org/project/saidso/) (Python) enforces the same rule for tool arguments, with fuzzy matching and a focus on voice agents. These checks are the TypeScript, exact-match version, plus the ambiguity and repeat checks.
+
 ## Severity
 
 The three prose checks default to `error`. Quantities and writes default to `warning`, because the first matches plain numbers and the second is only as good as the evidence you pass: if you keep truncated tool results, a real value beyond the cut-off will be reported. Watch what they report on your own traffic, then promote them:
@@ -180,6 +235,8 @@ Each check is also exported on its own, with a `status: 'passed' | 'failed' | 's
 - `checkQuantities({ text, evidence? })`
 - `checkWrites({ writes?, evidence?, citations? })`
 
+Before a call runs (see above): `checkToolArguments({ call, transcript }, options?)`, `checkAmbiguousTarget({ call, transcript }, options?)` (status `clear | ambiguous | skipped`), `checkRepeatedCall({ call, history }, options?)` (status `passed | repeated`). Helpers: `identifierArguments`, `argumentKind`, `valueInEvidence`, `argumentEvidence`, `canonicalArgs`.
+
 Lower-level helpers: `stripEchoedIdentifiers`, `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER` and `DEFAULT_SEVERITY`.
 
 ## Limits
@@ -191,6 +248,7 @@ These are heuristics. State them to yourself before relying on them.
 - **False positives happen.** A legitimate identifier the agent knew from its instructions rather than from a tool will be flagged unless you include it as evidence. An English compound with a digit in it will look like an id.
 - **False negatives happen.** Paraphrased or reworded fabrications, numbers outside the collection-noun list, contradictions not phrased as name-plus-version, and anything in a sentence with a negation all pass.
 - **The evidence is yours to supply.** If you truncate tool results, real values beyond the cut-off look invented. If you include the agent's own earlier output as evidence, its earlier inventions will back its later ones.
+- **Grounded is not right.** `checkToolArguments` proves a value came from somewhere, not that it is the value the person meant; `checkAmbiguousTarget` covers one common case of that (several records fit their words), not all of them. An agent can still pick the wrong tool or write something nobody asked for. Keep approvals on consequential writes.
 - **English only.** The patterns and stopword lists assume English prose.
 
 ## Licence
