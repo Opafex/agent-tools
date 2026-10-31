@@ -19,6 +19,10 @@ import { checkQuantities } from './quantities.js';
 import { checkFigures, type FigureKind } from './figures.js';
 import { checkWrites, type WriteCall, type WrittenTokenKind } from './writes.js';
 
+const FIGURE_WORDS: Record<FigureKind, string> = {
+  money: 'amount', percent: 'percentage', reference: 'reference', count: 'count', date: 'date', days: 'number of days',
+};
+
 export type CheckName = 'identifiers' | 'citations' | 'contradictions' | 'quantities' | 'writes' | 'figures';
 
 export type Severity = 'error' | 'warning';
@@ -84,6 +88,8 @@ export interface GroundingGateOptions {
    * the conversation, or a figure it legitimately carried forward is reported.
    */
   figures?: boolean;
+  /** Today, as `YYYY-MM-DD`, so the figures check can read "31 days overdue". */
+  today?: string;
   /** Override the severity of any check. */
   severity?: Partial<Record<CheckName, Severity>>;
   /** Checks not to run. */
@@ -318,9 +324,9 @@ export function runGroundingGate(
       ...(input.evidence ?? []),
       ...Object.values(input.citations ?? {}).map((s) => s?.content),
     ];
-    const r = checkFigures({ text, evidence });
+    const r = checkFigures({ text, evidence, today: options.today });
     for (const f of r.unsupported) {
-      const what = f.kind === 'money' ? 'amount' : f.kind === 'percent' ? 'percentage' : 'reference';
+      const what = FIGURE_WORDS[f.kind];
       violations.push({
         code: 'unsupported_figure',
         severity: severity.figures,

@@ -114,6 +114,27 @@ runGroundingGate({
 
 A claim matching any count in the evidence passes, and evidence with no countable structure skips the check.
 
+### Unsupported figures (`unsupported_figure`, warning, opt-in)
+
+Money, percentages, reference codes, counts, dates and numbers of days in the prose, checked against the records the tools returned. Turn it on with `{ figures: true }`, or call `checkFigures` directly.
+
+```ts
+checkFigures({
+  text: 'Calder Lift is 64% of the overdue total; 3 of the 4 are theirs, the oldest 31 days late (due 31 August).',
+  evidence: [{ rows: invoices }],   // 14 invoices, 4 overdue
+  today: '2026-10-31',
+});
+// unsupported: '64%', '3 of the 4', '31 August'   (76%, 2 of the 4 and 30 September are in the data)
+```
+
+- **Money** must be in the evidence, or a sum or difference of amounts in it.
+- **A percentage** must be a share of a total: the sum of the whole list of records, of a group of two or more sharing a value (status "Overdue", supplier "Calder Lift Services") or a pair of values, an amount labelled a total, or a total the reply states and the evidence supports. Its part is what the sentence is about: an amount it states or a group it names, then the same in its paragraph. Treating the evidence as a bag of amounts is not enough: across fourteen invoices nearly every whole number is some amount as a share of another.
+- **A count** ("3 of the 4", "2 overdue invoices") must be the size of a list or group, and is read only when the words after it occur in the evidence ("3 key points" is left alone).
+- **A date** must be one the evidence holds (ISO, or written in words, as in a user's message) or `today`. **Days** ("31 days overdue", "due in 9 days") must be the distance from `today` to one of them, within a day; without `today` they are not read.
+- **A reference code** (`CLS-20418`) must occur in the evidence.
+
+`summariseFigureEvidence` turns evidence into a short string that is itself evidence for this check, carrying amounts, codes, totals, counts and dates, so a later conversation turn can be checked without keeping the tool results.
+
 ### Invented written values (`ungrounded_write_value`, warning)
 
 The prose checks see what the agent says. This one sees what it writes. Pass the write tool calls that transcribe external facts (inserting rows, updating records) and their values.

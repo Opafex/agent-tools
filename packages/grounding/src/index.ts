@@ -114,3 +114,4 @@ export {
   type FigureKind,
   type UnsupportedFigure,
 } from './figures.js';
+export { collectRecordFacts, type RecordFacts } from './records.js';

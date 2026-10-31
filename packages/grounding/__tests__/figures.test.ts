@@ -47,7 +47,8 @@ describe('checkFigures', () => {
 
   it('reports suppliers and amounts invented in a turn that read nothing like them', () => {
     const r = check('- **BrightLight Electrical** (£3,250) — Due 15 October 2026.\n- **GreenClean Waste** (£4,340) — Due 20 October 2026.');
-    expect(r.unsupported.map((u) => u.token)).toEqual(['£3,250', '£4,340']);
+    // The due dates are made up too, and the records hold neither.
+    expect(r.unsupported.map((u) => u.token)).toEqual(['£3,250', '£4,340', '15 October 2026', '20 October 2026']);
   });
 
   it('reports a wrong total for two invoices', () => {
