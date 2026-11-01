@@ -133,3 +133,11 @@ describe('money stated against a whole group', () => {
     expect(result('4 invoices are overdue; Calder Lift Services owes £7,985.50 of it.').unsupported).toEqual([]);
   });
 });
+
+describe('money stated against a whole group, after a comma', () => {
+  const result = (text: string) => checkFigures({ text, evidence: EVIDENCE });
+  it('reads "…, totalling £X" with the clause before it', () => {
+    expect(result('4 invoices are overdue, totalling £7,985.50.').unsupported.map((u) => u.token)).toEqual(['£7,985.50']);
+    expect(result('4 invoices are overdue, totalling **£10,488.30**.').unsupported).toEqual([]);
+  });
+});

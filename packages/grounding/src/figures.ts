@@ -328,6 +328,7 @@ function names(span: string, name: string, firstWordShared: (w: string) => boole
  * The clause around a claim, as offsets: back to and forward from the nearest comma, semicolon,
  * dash, line break or sentence end. A comma between digits ("£10,488.30") does not end a clause.
  */
+const AMOUNT_CLAUSE_RE = /^[\s*_(]*(?:totall?ing|in total|a total of|for a total of|worth|amounting to|adding up to|which (?:total|comes? to)|together)\b/i;
 function clauseAround(text: string, at: number, length: number): [number, number] {
   const ends = (i: number): boolean => {
     const ch = text[i];
@@ -335,8 +336,13 @@ function clauseAround(text: string, at: number, length: number): [number, number
     if (ch === ';' || ch === '\n' || ch === '—' || ch === '–') return true;
     return /[.!?]/.test(ch) && /\s/.test(text[i + 1] ?? '');
   };
-  let start = 0;
-  for (let i = at - 1; i >= 0; i--) if (ends(i)) { start = i + 1; break; }
+  const back = (from: number): number => {
+    for (let i = from - 1; i >= 0; i--) if (ends(i)) return i + 1;
+    return 0;
+  };
+  let start = back(at);
+  // "4 invoices are overdue, totalling £X": a clause that only states the amount belongs to the one before it.
+  if (start > 0 && AMOUNT_CLAUSE_RE.test(text.slice(start, at))) start = back(start - 1);
   let end = text.length;
   for (let i = at + length; i < text.length; i++) if (ends(i)) { end = i; break; }
   return [start, end];
