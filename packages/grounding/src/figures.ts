@@ -57,11 +57,6 @@ export interface UnsupportedFigure {
   value: number | string;
   /** Up to 120 characters of surrounding prose. */
   context: string;
-  /**
-   * For money stated against a whole group ("4 invoices are overdue (£X)"): what that group totals,
-   * in minor units, and the group as the prose names it. A caller can name the right figure.
-   */
-  expected?: { value: number; group: string; size: number };
 }
 
 export interface FigureCheckInput {
@@ -324,30 +319,6 @@ function names(span: string, name: string, firstWordShared: (w: string) => boole
   return words.length > 1 && words[0].length >= 5 && !firstWordShared(words[0]) && has(words[0]);
 }
 
-/**
- * The clause around a claim, as offsets: back to and forward from the nearest comma, semicolon,
- * dash, line break or sentence end. A comma between digits ("£10,488.30") does not end a clause.
- */
-const AMOUNT_CLAUSE_RE = /^[\s*_(]*(?:totall?ing|in total|a total of|for a total of|worth|amounting to|adding up to|which (?:total|comes? to)|together)\b/i;
-function clauseAround(text: string, at: number, length: number): [number, number] {
-  const ends = (i: number): boolean => {
-    const ch = text[i];
-    if (ch === ',') return !(/\d/.test(text[i - 1] ?? '') && /\d/.test(text[i + 1] ?? ''));
-    if (ch === ';' || ch === '\n' || ch === '—' || ch === '–') return true;
-    return /[.!?]/.test(ch) && /\s/.test(text[i + 1] ?? '');
-  };
-  const back = (from: number): number => {
-    for (let i = from - 1; i >= 0; i--) if (ends(i)) return i + 1;
-    return 0;
-  };
-  let start = back(at);
-  // "4 invoices are overdue, totalling £X": a clause that only states the amount belongs to the one before it.
-  if (start > 0 && AMOUNT_CLAUSE_RE.test(text.slice(start, at))) start = back(start - 1);
-  let end = text.length;
-  for (let i = at + length; i < text.length; i++) if (ends(i)) { end = i; break; }
-  return [start, end];
-}
-
 /** Days from `from` to `to` (both YYYY-MM-DD). */
 const daysBetween = (from: string, to: string): number => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 864e5);
 
@@ -455,40 +426,10 @@ export function checkFigures(input: FigureCheckInput): FigureCheckResult {
   const daysSupported = (n: number) =>
     !!input.today && dates.some((d) => !d.startsWith('--') && Math.abs(daysBetween(input.today as string, d) - n) <= 1);
 
-  // Money stated against a WHOLE group: a clause that names a group the records hold and counts
-  // exactly as many as it has ("4 invoices are overdue (total £X)") is about all of them, so £X
-  // must be their total. Any partial sum passed before — "4 overdue (£7,985.50)" is Calder Lift's
-  // two, and "6 due (£4,180.55)" some of the six (Fernhill demo, 2026-11-01). A count smaller
-  // than the group ("2 due this week") is a subset, and is left to the sum search.
-  const wholeGroupTotal = (c: Claim): UnsupportedFigure['expected'] | null => {
-    const [a, b] = clauseAround(input.text, c.index, c.token.length);
-    const span = input.text.slice(a, b);
-    const sizes = claims
-      .filter((k) => k.kind === 'count' && /^\d+$/.test(String(k.value)) && k.index >= a && k.index < b)
-      .map((k) => Number(k.value));
-    if (sizes.length === 0) return null;
-    const allowed = new Set<number>();
-    let named: UnsupportedFigure['expected'] | null = null;
-    for (const [name, bySize] of rec.namedGroups) {
-      if (!names(span, name, firstWordShared)) continue;
-      for (const size of sizes) {
-        const sums = bySize.get(size);
-        if (!sums) continue;
-        for (const v of sums) allowed.add(v);
-        if (!named) named = { value: [...sums][0], group: name, size };
-      }
-    }
-    return named && !allowed.has(c.value as number) ? named : null;
-  };
-
   const unsupported: UnsupportedFigure[] = [];
   for (const c of claims) {
     let ok: boolean;
-    let expected: UnsupportedFigure['expected'] | null = null;
-    if (c.kind === 'money') {
-      expected = wholeGroupTotal(c);
-      ok = !expected && moneySupported(c.value as number);
-    }
+    if (c.kind === 'money') ok = moneySupported(c.value as number);
     else if (c.kind === 'reference') ok = ev.upper.includes(c.value as string);
     else if (c.kind === 'percent') {
       const pct = c.value as number;
@@ -509,10 +450,7 @@ export function checkFigures(input: FigureCheckInput): FigureCheckResult {
       ok = daysSupported(c.value as number);
     }
     if (!ok) {
-      unsupported.push({
-        token: c.token, kind: c.kind, value: c.value, context: contextWindow(input.text, c.index, c.token.length),
-        ...(expected ? { expected } : {}),
-      });
+      unsupported.push({ token: c.token, kind: c.kind, value: c.value, context: contextWindow(input.text, c.index, c.token.length) });
     }
   }
   return { status: unsupported.length > 0 ? 'failed' : 'passed', scanned: claims.length, unsupported };
