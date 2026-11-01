@@ -32,6 +32,11 @@ export interface RecordFacts {
   totals: Set<number>;
   /** Group value (lower-cased) to the sums of every group it names, in minor units, groups of one included. */
   namedTotals: Map<string, Set<number>>;
+  /**
+   * Group value (lower-cased) to each size of group it names, and that size's sums: "overdue" →
+   * 4 → {£10,488.30}. So "4 invoices are overdue" can be held to the total of those four.
+   */
+  namedGroups: Map<string, Map<number, Set<number>>>;
   /** Sizes: of each list and of each group or pair of values. */
   counts: Set<number>;
   /** Every ISO date (YYYY-MM-DD) held anywhere in the evidence. */
@@ -97,7 +102,7 @@ function addNamed(map: Map<string, Set<number>>, name: string, sum: number): voi
 }
 
 export function collectRecordFacts(evidence: readonly unknown[] | undefined): RecordFacts {
-  const facts: RecordFacts = { totals: new Set(), namedTotals: new Map(), counts: new Set(), dates: new Set(), found: false };
+  const facts: RecordFacts = { totals: new Set(), namedTotals: new Map(), namedGroups: new Map(), counts: new Set(), dates: new Set(), found: false };
   for (const item of evidence ?? []) {
     const text = serialiseEvidence(item) ?? '';
     for (const m of text.matchAll(/\b(\d{4})-(\d{2})-(\d{2})\b/g)) facts.dates.add(`${m[1]}-${m[2]}-${m[3]}`);
@@ -107,6 +112,16 @@ export function collectRecordFacts(evidence: readonly unknown[] | undefined): Re
     for (const recs of lists) readList(recs, facts);
   }
   return facts;
+}
+
+function addGroup(map: Map<string, Map<number, Set<number>>>, name: string, size: number, sum: number): void {
+  const key = name.toLowerCase().trim();
+  if (key.length < 3) return;
+  let bySize = map.get(key);
+  if (!bySize) map.set(key, (bySize = new Map()));
+  let sums = bySize.get(size);
+  if (!sums) bySize.set(size, (sums = new Set()));
+  sums.add(sum);
 }
 
 /**
@@ -161,7 +176,10 @@ function readList(recs: Rec[], facts: RecordFacts): void {
       let sum = 0;
       for (const r of group) sum += toMinor(r[mk]) ?? 0;
       if (group.length >= 2) facts.totals.add(sum);
-      for (const n of names) addNamed(facts.namedTotals, n, sum);
+      for (const n of names) {
+        addNamed(facts.namedTotals, n, sum);
+        addGroup(facts.namedGroups, n, group.length, sum);
+      }
     }
   };
 

@@ -102,3 +102,34 @@ describe('a later turn checks shares, counts and days against the summary alone'
     expect(checkFigures({ text: 'Pay CLS-20418 (£4,860) first; Calder Lift Services is 76% of what is overdue.', evidence: [inText] }).unsupported).toEqual([]);
   });
 });
+
+describe('money stated against a whole group', () => {
+  // Fernhill demo, 2026-11-01: each figure is a real partial sum, so the sum search passed both.
+  const DUE_TOTAL = OTHERS.reduce((s, r) => s + r.amount, 0);
+  const result = (text: string) => checkFigures({ text, evidence: EVIDENCE });
+
+  it('holds "4 invoices are overdue (total £X)" to the total of the four', () => {
+    const r = result('4 invoices are overdue (total £7,985.50), with the oldest from Calder Lift Services.');
+    expect(r.unsupported.map((u) => u.token)).toEqual(['£7,985.50']);
+    expect(r.unsupported[0].expected).toEqual({ value: 1048830, group: 'overdue', size: 4 });
+    expect(result('4 invoices are overdue (total £10,488.30), with the oldest from Calder Lift Services.').unsupported).toEqual([]);
+  });
+
+  it('holds a count of every due invoice to their total', () => {
+    const wrong = result('Another 10 invoices (£4,180.55) are due in the next 4 weeks, including two next week.');
+    expect(wrong.unsupported.map((u) => u.token)).toEqual(['£4,180.55']);
+    expect(wrong.unsupported[0].expected?.value).toBe(Math.round(DUE_TOTAL * 100));
+  });
+
+  it('passes a group within a group, and leaves a subset alone', () => {
+    // Calder Lift's two overdue invoices: the pair group (Calder, Overdue) has two, totalling £7,985.50.
+    expect(result('Calder Lift Services has 2 overdue invoices, totalling £7,985.50.').unsupported).toEqual([]);
+    // Two of the ten due invoices is a subset, not the group: the sum search decides.
+    expect(result('2 invoices are due soon (£1,822.50).').unsupported).toEqual([]);
+  });
+
+  it('does not reach across a clause', () => {
+    // The count and the group are in one clause, the amount in the next.
+    expect(result('4 invoices are overdue; Calder Lift Services owes £7,985.50 of it.').unsupported).toEqual([]);
+  });
+});
