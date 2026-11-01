@@ -21,6 +21,8 @@
  * is also why the gate gives it `warning` severity by default.
  */
 
+import { notACount } from './count-context.js';
+import { collectRecordFacts } from './records.js';
 import { contextWindow, lower } from './text.js';
 
 const COLLECTION_NOUN =
@@ -75,6 +77,8 @@ export function extractQuantityClaims(text: string): QuantityClaim[] {
   while ((m = COUNT_RE.exec(text)) !== null && claims.length < MAX_CLAIMS) {
     const number = Number(m[1]);
     if (!Number.isFinite(number)) continue;
+    // Money split at its point, a step number, a rate or a cap: true, and no count can back it.
+    if (notACount(text, m.index, m[0].length)) continue;
     claims.push({
       number,
       noun: (m[2] as string).replace(/\s+/g, ' ').trim().slice(0, 60),
@@ -126,6 +130,12 @@ export function collectEvidenceCounts(evidence: readonly unknown[] | undefined):
   for (const item of evidence ?? []) {
     if (typeof item === 'string') mineString(item, set);
     else if (item !== undefined && item !== null) walkForCounts(item, set, 0);
+  }
+  // The size of every group of records sharing a value ("4 overdue invoices"), as checkFigures
+  // reads them, so a subset the agent counted by grouping rows is backed. Bounded in records.ts.
+  for (const n of collectRecordFacts(evidence).counts) {
+    if (set.size >= MAX_EVIDENCE_COUNTS) break;
+    set.add(n);
   }
   return [...set];
 }

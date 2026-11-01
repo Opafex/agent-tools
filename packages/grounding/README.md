@@ -112,7 +112,9 @@ runGroundingGate({
 // unsupported_quantity (warning): claimed 6, counts found: 2
 ```
 
-A claim matching any count in the evidence passes, and evidence with no countable structure skips the check.
+A claim matching any count in the evidence passes, including the size of a group of records sharing a value ("4 overdue invoices" when four records are overdue), and evidence with no countable structure skips the check.
+
+**Not counted:** a number that is part of money, a code or a time (`$178.74`, `#2468-1399`, `10:30`), a number used as a name (`step 1`, `row 5`, `steps 5 through 9`), a rate (`1 entry/day`, `100 requests per minute`) or a limit (`up to 50 results`, `at least 3`). Both count readers share this rule (`notACount`).
 
 ### Unsupported figures (`unsupported_figure`, warning, opt-in)
 
@@ -129,7 +131,7 @@ checkFigures({
 
 - **Money** must be in the evidence, or a sum or difference of amounts in it.
 - **A percentage** must be a share of a total: the sum of the whole list of records, of a group of two or more sharing a value (status "Overdue", supplier "Calder Lift Services") or a pair of values, an amount labelled a total, or a total the reply states and the evidence supports. Its part is what the sentence is about: an amount it states or a group it names, then the same in its paragraph. Treating the evidence as a bag of amounts is not enough: across fourteen invoices nearly every whole number is some amount as a share of another.
-- **A count** ("3 of the 4", "2 overdue invoices") must be the size of a list or group, and is read only when the words after it occur in the evidence ("3 key points" is left alone).
+- **A count** ("3 of the 4", "2 overdue invoices") must be the size of a list or group, and is read only when the words after it occur in the evidence ("3 key points" is left alone). Money, codes, step numbers, rates and limits are not counts, as for quantities.
 - **A date** must be one the evidence holds (ISO, or written in words, as in a user's message) or `today`. **Days** ("31 days overdue", "due in 9 days") must be the distance from `today` to one of them, within a day; without `today` they are not read.
 - **A reference code** (`CLS-20418`) must occur in the evidence.
 
@@ -258,7 +260,7 @@ Each check is also exported on its own, with a `status: 'passed' | 'failed' | 's
 
 Before a call runs (see above): `checkToolArguments({ call, transcript }, options?)`, `checkAmbiguousTarget({ call, transcript }, options?)` (status `clear | ambiguous | skipped`), `checkRepeatedCall({ call, history }, options?)` (status `passed | repeated`). Helpers: `identifierArguments`, `argumentKind`, `valueInEvidence`, `argumentEvidence`, `canonicalArgs`.
 
-Lower-level helpers: `stripEchoedIdentifiers`, `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER` and `DEFAULT_SEVERITY`.
+Lower-level helpers: `stripEchoedIdentifiers`, `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `notACount`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER`, `DEFAULT_SEVERITY` and `GROUNDING_VERSION` (this package's version, for telling results checked by one release from another).
 
 ## Limits
 

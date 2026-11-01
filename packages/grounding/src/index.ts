@@ -115,3 +115,7 @@ export {
   type UnsupportedFigure,
 } from './figures.js';
 export { collectRecordFacts, type RecordFacts } from './records.js';
+
+export { GROUNDING_VERSION } from './version.js';
+
+export { notACount, type NotACountReason } from './count-context.js';

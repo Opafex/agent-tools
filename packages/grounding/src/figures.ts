@@ -40,6 +40,7 @@
  * 4"), dates and "N days overdue" are checked too.
  */
 
+import { notACount } from './count-context.js';
 import { contextWindow } from './text.js';
 import { serialiseEvidence } from './evidence.js';
 import { collectRecordFacts, namedLine, type RecordFacts } from './records.js';
@@ -213,8 +214,8 @@ function extractCountClaims(text: string): Claim[] {
     const at = m.index;
     if (!Number.isFinite(n) || n < 2 || UNITS.has(m[3].toLowerCase())) continue;
     if (spans.some(([a, b]) => at >= a && at < b)) continue;
-    // A number that is part of money, a decimal, a range or a code is not a count.
-    if (/[£€$.,\-\d]/.test(text.charAt(at - 1))) continue;
+    // Part of money, a code or a range, a step number, a rate or a cap: not a count (count-context.ts).
+    if (notACount(text, at, m[0].length)) continue;
     out.push({ token: m[0], kind: 'count', value: String(n), index: at, words: [m[2], m[3]].filter((w): w is string => !!w) });
   }
   return out;
