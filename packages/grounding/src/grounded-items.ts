@@ -18,8 +18,9 @@
  *      system turns by default: a prompt's examples are not firms anyone found.
  *   3. An item passes when its name, less words that do not tell one firm from
  *      another ("Ltd", "The"), occurs in the evidence on word boundaries, or when
- *      the registrable domain of one of its addresses does, so a page on
- *      `www.acme.co.uk` grounds `mail.acme.co.uk`.
+ *      the registrable domain of one of its addresses is the registrable domain
+ *      of a host in the evidence, so a page on `www.acme.co.uk` grounds
+ *      `mail.acme.co.uk`, and a page on `not-acme.co.uk` does not.
  *
  * Refuse the call when the result fails, and send `message` back to the model as
  * the tool result. Never repair the call by dropping the items it named.
@@ -69,24 +70,44 @@ export interface GroundedItemsResult {
 /** Words that do not tell one firm from another. */
 const NOISE = new Set(['the', 'ltd', 'limited', 'plc', 'llp', 'llc', 'inc', 'uk', 'group', 'co', 'company']);
 
-/** Lower case, `&` as "and", every other character that is not a letter or digit a space. */
+/**
+ * Lower case, one encoding of each accent, `&` as "and", every character that is
+ * not part of a word a space. A combining mark is part of its word.
+ */
 function normalise(text: string): string {
-  return lower(text).replace(/&/g, ' and ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  return lower(text).normalize('NFC').replace(/&/g, ' and ').replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
 }
 
 function nameCore(name: string): string {
-  const words = normalise(name).split(' ').filter(Boolean);
+  const all = normalise(name).split(' ').filter(Boolean);
+  const words = [...all];
   while (words.length > 1 && NOISE.has(words[words.length - 1])) words.pop();
   while (words.length > 1 && NOISE.has(words[0])) words.shift();
-  return words.join(' ');
+  // Made only of such words, what is left would be grounded by nearly any sentence.
+  return (NOISE.has(words[0]) ? all : words).join(' ');
 }
 
-/** The evidence, padded so a phrase can be matched on word boundaries. */
-function itemEvidence(raw: string): string {
-  // A mask is not a word, and a newline escaped inside a JSON result would
-  // otherwise leave its `n` stuck to the next word.
-  const text = raw.split(ECHO_MASK).join(' ').replace(/\\[nrt]/g, ' ');
-  return ` ${normalise(text)} `;
+/** The evidence as plain text. */
+function evidenceText(raw: string): string {
+  // A mask is not a word, and a character escaped inside a JSON result would
+  // otherwise leave its letter stuck to the next word.
+  return raw.split(ECHO_MASK).join(' ').replace(/\\[bfnrt]/g, ' ');
+}
+
+/**
+ * The registrable domain of every host in the evidence. Compared as domains, not
+ * as words: `not-acme.com` and `acme.com.other.net` hold the words of `acme.com`
+ * and neither is it. A word at the end of a sentence has a dot and is no host,
+ * and a number such as `0.1` names nothing.
+ */
+function domainsIn(text: string): Set<string> {
+  const domains = new Set<string>();
+  for (const token of text.split(/[^\p{L}\p{M}\p{N}._-]+/u)) {
+    if (!token.includes('.')) continue;
+    const host = hostOf(token);
+    if (host?.includes('.') && /\p{L}/u.test(host)) domains.add(registrableDomain(host));
+  }
+  return domains;
 }
 
 function itemsOf(args: unknown, param: string): unknown[] {
@@ -109,11 +130,9 @@ function stringField(item: unknown, field: string): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-function addressNamed(address: string, evidence: string): boolean {
+function addressNamed(address: string, domains: ReadonlySet<string>): boolean {
   const host = hostOf(address);
-  // A host with no dot is a word, and any common word is in the evidence.
-  if (host === null || !host.includes('.')) return false;
-  return evidence.includes(` ${normalise(registrableDomain(host))} `);
+  return host !== null && domains.has(registrableDomain(host));
 }
 
 export function ungroundedItemsMessage(items: readonly UngroundedItem[]): string {
@@ -133,9 +152,12 @@ export function checkGroundedItems(
 ): GroundedItemsResult {
   const { call, transcript, declaration } = input;
   const items = itemsOf(call?.args, declaration.param);
-  const evidence = itemEvidence(
+  const text = evidenceText(
     argumentEvidence(transcript, call?.tool, { systemEvidence: options.systemEvidence ?? 'none' }),
   );
+  // Padded so a phrase can be matched on word boundaries.
+  const evidence = ` ${normalise(text)} `;
+  const domains = declaration.addressFields?.length ? domainsIn(text) : new Set<string>();
   const ungrounded: UngroundedItem[] = [];
   let checked = 0;
   items.forEach((item, i) => {
@@ -145,7 +167,7 @@ export function checkGroundedItems(
     if (!core && addresses.length === 0) return;
     checked += 1;
     if (core && evidence.includes(` ${core} `)) return;
-    if (addresses.some((a) => addressNamed(a, evidence))) return;
+    if (addresses.some((a) => addressNamed(a, domains))) return;
     ungrounded.push({ path: `${declaration.param}[${i}]`, value: name || addresses[0] });
   });
   if (checked === 0) return { status: 'skipped', checked: 0, ungrounded: [], message: '' };

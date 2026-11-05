@@ -69,6 +69,12 @@ describe('checkGroundedItems: items nothing named are refused before the call ru
     expect(check(['The Halden Logistics Group Ltd', 'Halden Logistics Limited', 'Halden Logistics UK'], transcript).status).toBe('passed');
   });
 
+  it('a name made only of such words has to occur whole, or any sentence would ground it', () => {
+    const transcript: TranscriptTurn[] = [{ role: 'user', content: 'Find the best firms in the UK.' }];
+    expect(values(check(['The Group Ltd', 'UK Ltd'], transcript))).toEqual(['The Group Ltd', 'UK Ltd']);
+    expect(check(['The Group Ltd'], [{ role: 'user', content: 'Have I emailed The Group Ltd?' }]).status).toBe('passed');
+  });
+
   it('matches a name on word boundaries, not inside a longer word', () => {
     const r = check(['Halden'], [{ role: 'user', content: 'Check Haldenbury Logistics.' }]);
     expect(values(r)).toEqual(['Halden']);
@@ -168,6 +174,64 @@ describe('checkGroundedItems: addresses are grounded by registrable domain', () 
     expect(values(r)).toEqual(['Invented Ltd']);
   });
 
+  it('a word at the end of a sentence is not a host, so a bare word in an address field stays unnamed', () => {
+    const r = check([{ name: 'Invented Ltd', website: 'firm' }], [{ role: 'user', content: 'Find me a freight firm.' }]);
+    expect(values(r)).toEqual(['Invented Ltd']);
+  });
+
+  it('a longer domain that ends in the same words is a different domain', () => {
+    const named = (url: string): TranscriptTurn[] => [{ role: 'tool', tool: 'web_search', content: { url } }];
+    expect(values(check([{ name: 'Invented Ltd', website: 'smith-example.co.uk' }], named('https://john-smith-example.co.uk/')))).toEqual(['Invented Ltd']);
+    expect(values(check([{ name: 'Invented Ltd', website: 'mail.acme-example.com' }], named('https://not-acme-example.com/')))).toEqual(['Invented Ltd']);
+  });
+
+  it("a domain inside somebody else's host is not named", () => {
+    const r = check([{ name: 'Invented Ltd', website: 'acme-example.com' }], [{ role: 'tool', tool: 'web_search', content: { url: 'https://acme-example.com.elsewhere.net/' } }]);
+    expect(values(r)).toEqual(['Invented Ltd']);
+  });
+
+  it('a trailing full stop does not reduce an address to its suffix', () => {
+    const real: TranscriptTurn[] = [{ role: 'tool', tool: 'web_search', content: { urls: ['https://real-example.com/', 'https://real-example.co.uk/'] } }];
+    expect(values(check([{ name: 'Invented Ltd', website: 'marrowfen-example.com.' }], real))).toEqual(['Invented Ltd']);
+    expect(values(check([{ name: 'Invented Ltd', website: 'https://marrowfen-example.co.uk./about' }], real))).toEqual(['Invented Ltd']);
+    expect(check([{ name: 'Invented Ltd', website: 'real-example.com.' }], real).status).toBe('passed');
+  });
+
+  it('a bare suffix is not grounded by a domain under it', () => {
+    const r = check([{ name: 'Invented Ltd', website: 'www.co.uk' }], seen);
+    expect(values(r)).toEqual(['Invented Ltd']);
+  });
+
+  it('an IP address is not grounded by a version number', () => {
+    const r = check([{ name: 'Invented Ltd', website: 'http://10.0.0.1/' }], [{ role: 'tool', tool: 'web_search', content: 'Release 0.1 of the app' }]);
+    expect(values(r)).toEqual(['Invented Ltd']);
+  });
+
+  it('words that look like a domain once punctuation is gone are not one', () => {
+    const r = check([{ name: 'Invented Ltd', website: 'acme-example.co.uk' }], [{ role: 'user', content: 'Ask acme example, co. UK office.' }]);
+    expect(values(r)).toEqual(['Invented Ltd']);
+  });
+
+  it('finds a domain at the end of a sentence, in an email, after an escaped newline and in a percent-encoded link', () => {
+    const address = [{ name: 'Invented Ltd', website: 'corvane-example.co.uk' }];
+    for (const content of [
+      'See corvane-example.co.uk.',
+      'Write to jo.bloggs+x@mail.corvane-example.co.uk, please',
+      { snippet: 'Links:\ncorvane-example.co.uk\nother' },
+      'https://search.example.net/r?u=https%3A%2F%2Fwww.corvane-example.co.uk%2Fteam',
+    ]) {
+      expect(check(address, [{ role: 'tool', tool: 'web_search', content }]).status).toBe('passed');
+    }
+  });
+
+  it('reads an international domain the same way on both sides', () => {
+    const r = check([{ name: 'Invented Ltd', website: 'https://www.m\u00fcnchen-example.de/' }], [{ role: 'tool', tool: 'web_search', content: 'Site: m\u00fcnchen-example.de' }]);
+    expect(r.status).toBe('passed');
+    // The same domain with its accent stored as a separate mark.
+    const decomposed = check([{ name: 'Invented Ltd', website: 'münchen-example.de' }], [{ role: 'tool', tool: 'web_search', content: 'Site: münchen-example.de' }]);
+    expect(decomposed.status).toBe('passed');
+  });
+
   it('an item with an address and no name is checked on the address, and reported by it', () => {
     expect(values(check([{ website: 'marrowfen-example.co.uk' }], seen))).toEqual(['marrowfen-example.co.uk']);
     expect(check([{ website: 'corvane-example.co.uk' }], seen).status).toBe('passed');
@@ -187,6 +251,23 @@ describe('checkGroundedItems: reading the evidence', () => {
   it('finds a name at the start of a line inside a JSON result', () => {
     const r = check(['Corvane Freight'], [{ role: 'tool', tool: 'web_search', content: { snippet: 'Top hauliers:\nCorvane Freight\nHalden Logistics' } }]);
     expect(r.status).toBe('passed');
+  });
+
+  it('reads a form feed or backspace escaped inside a JSON result the same way', () => {
+    expect(check(['Corvane Freight'], [{ role: 'tool', tool: 'web_search', content: { snippet: 'Top:\fCorvane Freight\bHalden' } }]).status).toBe('passed');
+  });
+
+  it('reads an accent the same whichever way the text encodes it', () => {
+    const composed = 'Caf\u00e9 Noir';
+    const decomposed = 'Cafe\u0301 Noir';
+    expect(check([composed], [{ role: 'user', content: `Check ${decomposed}` }]).status).toBe('passed');
+    expect(check([decomposed], [{ role: 'user', content: `Check ${composed}` }]).status).toBe('passed');
+  });
+
+  it('an accent is part of the word, so the unaccented word does not ground it', () => {
+    expect(values(check(['Cafe\u0301'], [{ role: 'user', content: 'Check the cafe.' }]))).toEqual(['Cafe\u0301']);
+    // A vowel sign is a combining mark, so a shorter word is not a prefix of the name.
+    expect(values(check(['\u0915'], [{ role: 'user', content: '\u0915\u093f' }]))).toEqual(['\u0915']);
   });
 
   it('checks a name with no Latin letters, rather than passing it unread', () => {
@@ -212,6 +293,7 @@ describe('domains', () => {
     expect(hostOf('WWW2.Corvane-Example.com')).toBe('corvane-example.com');
     expect(hostOf('corvane-example.com/about')).toBe('corvane-example.com');
     expect(hostOf('jo@corvane-example.com')).toBe('corvane-example.com');
+    expect(hostOf('https://corvane-example.co.uk./team')).toBe('corvane-example.co.uk');
     expect(hostOf('  ')).toBeNull();
     expect(hostOf('not a domain')).toBeNull();
   });

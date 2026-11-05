@@ -27,8 +27,9 @@ export function hostOf(urlOrDomain: string): string | null {
   const raw = urlOrDomain.trim();
   if (!raw) return null;
   try {
-    const host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`).hostname;
-    return host ? lower(host).replace(/^www\d*\./, '') : null;
+    const hostname = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `https://${raw}`).hostname;
+    // A trailing full stop is legal in a host, and would leave `acme.com.` reading as `com.`.
+    return lower(hostname).replace(/\.+$/, '').replace(/^www\d*\./, '') || null;
   } catch {
     return null;
   }
