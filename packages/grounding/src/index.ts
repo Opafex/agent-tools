@@ -82,6 +82,15 @@ export {
 } from './arguments.js';
 
 export {
+  checkGroundedItems,
+  ungroundedItemsMessage,
+  type GroundedItemsDeclaration,
+  type GroundedItemsOptions,
+  type GroundedItemsResult,
+  type UngroundedItem,
+} from './grounded-items.js';
+
+export {
   checkAmbiguousTarget,
   ambiguousTargetMessage,
   type AmbiguityCheckOptions,
