@@ -110,11 +110,9 @@ export function recipientsIn(value: string): string[] {
   return split.map((part) => (part.match(/<([^<>]*)>\s*$/)?.[1] ?? part).trim()).filter(Boolean);
 }
 
-/** `value`'s host when the whole of it reads as a web address, or `null`. */
+/** `value`'s host when it reads as a web address, or `null`. A space in a host fails to parse. */
 function webAddressOf(value: string): string | null {
-  const text = value.trim();
-  if (/\s/.test(text)) return null;
-  const host = hostOf(text);
+  const host = hostOf(value);
   return host !== null && TOP_LEVEL_RE.test(host) ? host : null;
 }
 
