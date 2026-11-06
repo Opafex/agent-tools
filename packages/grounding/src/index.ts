@@ -91,6 +91,23 @@ export {
 } from './grounded-items.js';
 
 export {
+  checkGroundedRows,
+  ungroundedRowsMessage,
+  type GroundedRowsDeclaration,
+  type GroundedRowsOptions,
+  type GroundedRowsResult,
+} from './grounded-rows.js';
+
+export {
+  checkGroundedAddresses,
+  ungroundedAddressesMessage,
+  type GroundedAddressesDeclaration,
+  type GroundedAddressesOptions,
+  type GroundedAddressesResult,
+  type UngroundedAddress,
+} from './grounded-addresses.js';
+
+export {
   checkAmbiguousTarget,
   ambiguousTargetMessage,
   type AmbiguityCheckOptions,

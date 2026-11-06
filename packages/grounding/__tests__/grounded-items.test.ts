@@ -247,6 +247,37 @@ describe('checkGroundedItems: addresses are grounded by registrable domain', () 
   });
 });
 
+describe('checkGroundedItems: an address in the name field is still an address', () => {
+  const named = (content: unknown): TranscriptTurn[] => [{ role: 'tool', tool: 'web_search', content }];
+
+  it('is not grounded by a longer domain that ends in its words', () => {
+    expect(values(check(['smith-example.co.uk'], named('https://john-smith-example.co.uk/')))).toEqual(['smith-example.co.uk']);
+    expect(values(check([{ name: 'smith-example.co.uk' }], named('https://john-smith-example.co.uk/')))).toEqual(['smith-example.co.uk']);
+  });
+
+  it('is not grounded by the word it is made of', () => {
+    expect(values(check(['smith-example.co.uk'], [{ role: 'user', content: 'Ask smith example about it.' }]))).toEqual(['smith-example.co.uk']);
+  });
+
+  it('a trailing full stop does not reduce it to its suffix', () => {
+    expect(values(check(['invented-example.com.'], named('https://real-example.com/')))).toEqual(['invented-example.com.']);
+  });
+
+  it('passes when its domain was named', () => {
+    expect(check(['corvane-example.co.uk', 'https://www.corvane-example.co.uk/team'], named('https://corvane-example.co.uk/')).status).toBe('passed');
+  });
+
+  it('an email address there is matched whole', () => {
+    expect(values(check(['smith@corvane-example.co.uk'], named('john-smith@corvane-example.co.uk')))).toEqual(['smith@corvane-example.co.uk']);
+    expect(check(['jo@corvane-example.co.uk'], named('Write to jo@corvane-example.co.uk.')).status).toBe('passed');
+  });
+
+  it('a name with a full stop in it is still a name', () => {
+    expect(check(['St. Halden Logistics Inc.'], [{ role: 'user', content: 'Check St Halden Logistics.' }]).status).toBe('passed');
+    expect(check(['Halden Logistics.'], [{ role: 'user', content: 'Check Halden Logistics.' }]).status).toBe('passed');
+  });
+});
+
 describe('checkGroundedItems: reading the evidence', () => {
   it('finds a name at the start of a line inside a JSON result', () => {
     const r = check(['Corvane Freight'], [{ role: 'tool', tool: 'web_search', content: { snippet: 'Top hauliers:\nCorvane Freight\nHalden Logistics' } }]);

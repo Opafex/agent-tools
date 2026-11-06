@@ -147,7 +147,7 @@ describe('checkGroundedRows: an address is compared as an address', () => {
 
   it('an address with a trailing full stop is read, in any column, rather than passed as free text', () => {
     const r = check([{ notes: 'jo@invented-example.com.' }], seen('https://invented-example.com/'));
-    expect(values(r)).toEqual(['jo@invented-example.com.']);
+    expect(values(r)).toEqual(['jo@invented-example.com']);
     expect(check([{ notes: 'jo@corvane-example.com.' }], seen('Write to jo@corvane-example.com.')).status).toBe('passed');
   });
 
