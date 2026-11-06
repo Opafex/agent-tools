@@ -154,7 +154,7 @@ Only reference-shaped values are checked: hyphen-grouped codes with enough digit
 
 ## Before a tool call runs
 
-The checks above read what the agent produced. These four read a tool call it is ABOUT to make, so you can refuse it before anything happens. Each returns a `message` written for the model: send it back as the tool's result, and the agent can look the value up, ask the person, or try something else. Never repair the call yourself by guessing a replacement.
+The checks above read what the agent produced. These six read a tool call it is ABOUT to make, so you can refuse it before anything happens. Each returns a `message` written for the model: send it back as the tool's result, and the agent can look the value up, ask the person, or try something else. Never repair the call yourself by guessing a replacement.
 
 They take the conversation as turns, because the rule is about who said what:
 
@@ -196,11 +196,44 @@ checkGroundedItems({ call: { tool: 'check_firms', args: { firms: [{ name: 'Marro
 // { status: 'failed', checked: 1, ungrounded: [{ path: 'firms[0]', value: 'Marrowfen Ltd' }], message: 'Refused: ...' }
 ```
 
-An item is a bare string or an object. It passes when its name occurs in the evidence on whole words, ignoring case, punctuation, `&` against "and", and words that do not tell one firm from another (`Ltd`, `Limited`, `plc`, `LLP`, `LLC`, `Inc`, `UK`, `Group`, `Co`, `Company`, `The`). A name made only of those words has to occur whole. It also passes when one of its `addressFields` has the same registrable domain as a host in the evidence, so a page on `www.acme.co.uk` grounds `mail.acme.co.uk` and `jo@acme.co.uk`. Domains are compared as domains, so `not-acme.co.uk`, `acme.co.uk.other.net` and the words "Acme, co. UK" do not ground `acme.co.uk`. An item with an address and no name is checked on the address.
+An item is a bare string or an object. It passes when its name occurs in the evidence on whole words, ignoring case, punctuation, `&` against "and", and words that do not tell one firm from another (`Ltd`, `Limited`, `plc`, `LLP`, `LLC`, `Inc`, `UK`, `Group`, `Co`, `Company`, `The`). A name made only of those words has to occur whole. A name that is really an address is compared as one: `smith.co.uk` needs that domain in the evidence, not the word "Smith", and `jo@acme.co.uk` needs that whole address. It also passes when one of its `addressFields` has the same registrable domain as a host in the evidence, so a page on `www.acme.co.uk` grounds `mail.acme.co.uk` and `jo@acme.co.uk`. Domains are compared as domains, so `not-acme.co.uk`, `acme.co.uk.other.net` and the words "Acme, co. UK" do not ground `acme.co.uk`. An item with an address and no name is checked on the address.
 
 The check reads an array and the fields you declared, and nothing else. If `param` holds anything but an array the result is `skipped`, and an item with neither a string in `field` nor an address is not counted. If your tool accepts a single item or a JSON string in place of the list, convert it before you call this check.
 
 The evidence is the same as for `checkToolArguments`, with one difference: `systemEvidence` defaults to `'none'`, because a name in a prompt is an example and not something anyone found. A tool's own results never count, so a second call cannot ground itself on the first, provided each tool turn carries its `tool`. Nor does a turn with `ok: false`. Use that for any turn whose output found nothing, not only a failed call: a tool that only shows the model's own options back to it (choice buttons, a preview) should be marked `ok: false` or left out. The reverse holds too: leave `ok` unset on a failure that does name something real, such as a "duplicate" refusal naming the existing record.
+
+### Grounded rows (`checkGroundedRows`)
+
+A row of a table is mostly the agent's own writing, so `checkGroundedItems` would refuse too much. This check reads only what a row says was found. An agent asked for thirty firms finds twenty and pads the table: every row looks like the others, and nothing about the call has the wrong shape.
+
+```ts
+const declaration = { param: 'rows' };
+
+checkGroundedRows({ call: { tool: 'add_rows', args: { rows: [{ firm: 'Marrowfen Freight', notes: 'Call Tuesday' }] } }, transcript, declaration });
+// { status: 'failed', checked: 1, ungrounded: [{ path: 'rows[0].firm', value: 'Marrowfen Freight' }], message: 'Refused: ...' }
+```
+
+The declaration says where the rows are: an array of rows (`{ param: 'rows' }`), one row (`{ param: 'values', single: true }`), or an array of items each holding its row under a key (`{ param: 'updates', field: 'values' }`).
+
+Two kinds of value are read. A value that is wholly an email address, or a list of them, is read in any column, and must have been named whole, so a pattern-built `first.last@firm.com` fails even when the firm's site was read. Any other value is read only in a column that names a firm or a person: `firm`, `company`, `business`, `organisation`, `employer`, `agency`, `practice`, `contact`, `person`, `full_name` and `recipient`, with or without `_name` where that reads naturally, in any case and with spaces or hyphens for the underscore. A bare `name` column is left out on purpose, because a row the agent composes has a name nobody had to find. A column may hold a list. Names and web addresses are compared as in `checkGroundedItems`, and the evidence is the same.
+
+### Grounded addresses (`checkGroundedAddresses`)
+
+An address is the one value that reaches a stranger when it is wrong, and the one a model finds easiest to build. `checkToolArguments` finds an address that is the whole of an argument. This check is for the arguments a tool declares as recipients, which arrive in more shapes than that, and it fails closed.
+
+```ts
+const declaration = { params: ['to', 'cc'] };
+
+checkGroundedAddresses({ call: { tool: 'send', args: { to: 'Sam <sam.ellery@haldenfreight.co.uk>, Kit' } }, transcript, declaration });
+// { status: 'failed', checked: 2, ungrounded: [
+//   { path: 'to[0]', value: 'sam.ellery@haldenfreight.co.uk', reason: 'not_named' },
+//   { path: 'to[1]', value: 'Kit', reason: 'not_an_address' },
+// ], message: 'Refused: ...' }
+```
+
+A declared argument is a string or an array of strings. A string may hold several recipients, split on commas, semicolons and new lines, and a recipient may have a display name (`Jo <jo@firm.com>`, `"Ellery, Jo" <jo@firm.com>`) or a `mailto:`. Each address must occur in the evidence as a whole address: `smith@firm.com` is not grounded by `john-smith@firm.com`, nor `jo@firm.com` by `jo@firm.com.au`, nor by a page on `firm.com`. A trailing full stop is dropped before the comparison. A value in a declared argument that cannot be read as an address is refused with `reason: 'not_an_address'` rather than passed unread, including two addresses with only a space between them.
+
+The evidence is the same as for `checkGroundedItems`. To let an agent write to the person it is working for, add their own addresses to the transcript as a tool turn, under a tool name of your own.
 
 ### Ambiguous targets (`checkAmbiguousTarget`)
 
@@ -275,7 +308,7 @@ Each check is also exported on its own, with a `status: 'passed' | 'failed' | 's
 - `checkQuantities({ text, evidence? })`
 - `checkWrites({ writes?, evidence?, citations? })`
 
-Before a call runs (see above): `checkToolArguments({ call, transcript }, options?)`, `checkGroundedItems({ call, transcript, declaration }, options?)`, `checkAmbiguousTarget({ call, transcript }, options?)` (status `clear | ambiguous | skipped`), `checkRepeatedCall({ call, history }, options?)` (status `passed | repeated`). Helpers: `identifierArguments`, `argumentKind`, `valueInEvidence`, `argumentEvidence`, `canonicalArgs`, `ungroundedItemsMessage`.
+Before a call runs (see above): `checkToolArguments({ call, transcript }, options?)`, `checkGroundedItems({ call, transcript, declaration }, options?)`, `checkGroundedRows({ call, transcript, declaration }, options?)`, `checkGroundedAddresses({ call, transcript, declaration }, options?)`, `checkAmbiguousTarget({ call, transcript }, options?)` (status `clear | ambiguous | skipped`), `checkRepeatedCall({ call, history }, options?)` (status `passed | repeated`). Helpers: `identifierArguments`, `argumentKind`, `valueInEvidence`, `argumentEvidence`, `canonicalArgs`, `ungroundedItemsMessage`, `ungroundedRowsMessage`, `ungroundedAddressesMessage`.
 
 Lower-level helpers: `stripEchoedIdentifiers`, `extractIdentifierTokens`, `trimUrlToken`, `extractFactPairs`, `findContradictions`, `extractQuantityClaims`, `collectEvidenceCounts`, `notACount`, `buildEvidenceText`, `appearsInEvidence`, plus the constants `DEFAULT_ALLOWED_HOSTS`, `DEFAULT_CITATION_MARKER`, `DEFAULT_SEVERITY` and `GROUNDING_VERSION` (this package's version, for telling results checked by one release from another).
 
@@ -289,9 +322,12 @@ These are heuristics. State them to yourself before relying on them.
 - **False negatives happen.** Paraphrased or reworded fabrications, numbers outside the collection-noun list, contradictions not phrased as name-plus-version, and anything in a sentence with a negation all pass.
 - **The evidence is yours to supply.** If you truncate tool results, real values beyond the cut-off look invented. If you include the agent's own earlier output as evidence, its earlier inventions will back its later ones.
 - **Grounded is not right.** `checkToolArguments` proves a value came from somewhere, not that it is the value the person meant; `checkAmbiguousTarget` covers one common case of that (several records fit their words), not all of them. An agent can still pick the wrong tool or write something nobody asked for. Keep approvals on consequential writes.
-- **A name is only matched as written.** `checkGroundedItems` does not know that `Acme` and `Acme Holdings` are one firm or two: a shorter name passes on a longer one's words, and a nickname or a translated name is refused. Echo masking covers identifiers, so a name another tool merely repeated from its own arguments still counts as evidence. The keys of a JSON result are read as words too, so a firm called `Title` passes on a `title` key. An address put in the name field is read as a name, so `smith.co.uk` passes on the word "Smith": declare address fields in `addressFields`.
-- **The domain list is short.** `checkGroundedItems` knows 17 two-part suffixes such as `co.uk` and `com.au`, not the public suffix list. Under any other two-part suffix, `acme.co.jp` reads as `co.jp`, so any address under it grounds any other. The same goes for a shared host: `a.github.io` grounds `b.github.io`.
-- **English only.** The patterns and stopword lists assume English prose. The legal-form words `checkGroundedItems` ignores are English ones, so `Acme GmbH` needs `GmbH` in the evidence.
+- **A name is only matched as written.** `checkGroundedItems` does not know that `Acme` and `Acme Holdings` are one firm or two: a shorter name passes on a longer one's words, and a nickname or a translated name is refused. Echo masking covers identifiers, so a name another tool merely repeated from its own arguments still counts as evidence. The keys of a JSON result are read as words too, so a firm called `Title` passes on a `title` key.
+- **A row is only read where it says something was found.** `checkGroundedRows` reads a fixed list of column names, so a firm in a `client` column passes unread, and so does a web address in any column outside that list. An address inside a sentence in a free column is not read either.
+- **A recipient must be in the evidence as an address.** `checkGroundedAddresses` does not read `jo [at] firm.com` or a percent-encoded address, so one published that way is refused. A lookup that only repeats the address it was given grounds nothing when the turn carries its `args`, even if the mailbox is real.
+
+- **The domain list is short.** The domain comparison knows 17 two-part suffixes such as `co.uk` and `com.au`, not the public suffix list. Under any other two-part suffix, `acme.co.jp` reads as `co.jp`, so any address under it grounds any other. The same goes for a shared host: `a.github.io` grounds `b.github.io`.
+- **English only.** The patterns and stopword lists assume English prose. The legal-form words `checkGroundedItems` and `checkGroundedRows` ignore are English ones, so `Acme GmbH` needs `GmbH` in the evidence.
 
 ## Licence
 

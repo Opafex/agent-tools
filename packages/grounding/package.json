@@ -1,7 +1,7 @@
 {
   "name": "@opafex/grounding",
   "version": "0.10.0",
-  "description": "Deterministic checks that an LLM agent is backed by its tool results: fabricated identifiers, citation drift, self-contradiction, unsupported counts, unsupported money, percentages, counts, dates and reference numbers, invented written values, and - before a tool call runs - ungrounded arguments, invented list items, ambiguous targets and repeated calls. Pure, zero dependencies.",
+  "description": "Deterministic checks that an LLM agent is backed by its tool results: fabricated identifiers, citation drift, self-contradiction, unsupported counts, unsupported money, percentages, counts, dates and reference numbers, invented written values, and - before a tool call runs - ungrounded arguments, invented list items, table rows and email recipients, ambiguous targets and repeated calls. Pure, zero dependencies.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
