@@ -11,6 +11,7 @@ Releases before 0.10.0 are recorded in the commit history.
 - `checkGroundedRows({ call, transcript, declaration }, options?)`: a pre-call check for table rows. The declaration names an array of rows (`param`), one row (`single`) or rows held under a key (`field`). A value that is wholly an email address is read in any column, and any other value only in a column that names a firm or a person. Each must have been named by the person or by another tool's result. `ungroundedRowsMessage`, and the types `GroundedRowsDeclaration`, `GroundedRowsOptions` and `GroundedRowsResult`.
 - `checkGroundedAddresses({ call, transcript, declaration }, options?)`: a pre-call check for the arguments a tool declares as recipients (`params`). Each address must have been named whole, and a value that cannot be read as an address is refused. `ungroundedAddressesMessage`, and the types `GroundedAddressesDeclaration`, `GroundedAddressesOptions`, `GroundedAddressesResult` and `UngroundedAddress`.
 - All three compare a value as what it is: an email address whole, a web address by registrable domain, a name on whole words. A web address is never compared as words, so `smith.co.uk` is not grounded by `john-smith.co.uk`, and a trailing full stop does not reduce `invented.com.` to `com`.
+- An email address in the evidence is read past the punctuation around it: a quote, a full stop, `_` or `-` at either end, or a possessive `'s`. Only the ends are trimmed, so `jane_doe@my-firm.co.uk` stays whole and `john-smith@firm.co.uk` does not ground `smith@firm.co.uk`.
 
 ### Changed
 

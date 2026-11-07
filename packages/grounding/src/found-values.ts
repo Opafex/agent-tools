@@ -58,6 +58,12 @@ const NOISE = new Set(['the', 'ltd', 'limited', 'plc', 'llp', 'llc', 'inc', 'uk'
 /** One address: a local part, "@" and a dotted domain with no empty label. */
 const ADDRESS_RE = /^[^\s@<>,;"]+@[^\s@<>,;".]+(?:\.[^\s@<>,;".]+)+$/u;
 
+/**
+ * What a person puts around an address in text, once it is lower-cased: quotes,
+ * full stops, `_emphasis_`, a dash, and a possessive `'s`.
+ */
+const AROUND_ADDRESS_RE = /^['._-]+|(?:['._-]|'s)+$/g;
+
 /** A host's last label: letters, or the encoded form of an international one. */
 const TOP_LEVEL_RE = /\.(?:\p{L}{2,}|xn--[a-z0-9-]+)$/u;
 
@@ -141,14 +147,15 @@ function domainsIn(text: string): Set<string> {
 
 /**
  * Every email address in the evidence, whole. Split rather than matched with a
- * pattern, so a long run of letters in a tool result costs one pass. A quote or a
- * full stop at either end of a token is punctuation around it.
+ * pattern, so a long run of letters in a tool result costs one pass. Only the ends
+ * of a token are trimmed, so `john-smith@acme.com` stays whole and never reads as
+ * `smith@acme.com`.
  */
 function addressesIn(text: string): Set<string> {
   const addresses = new Set<string>();
   for (const token of text.split(/[^\p{L}\p{M}\p{N}._%+'@-]+/u)) {
     if (!token.includes('@')) continue;
-    const address = addressOf(token.replace(/^['.]+|['.]+$/g, ''));
+    const address = addressOf(token.replace(AROUND_ADDRESS_RE, ''));
     if (address) addresses.add(address);
   }
   return addresses;

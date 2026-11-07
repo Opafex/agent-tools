@@ -179,6 +179,33 @@ describe('checkGroundedAddresses: compared as addresses, not as words', () => {
     expect(check({ to: "o'neil@corvane-example.com" }, seen("Write to o'neil@corvane-example.com")).status).toBe('passed');
     expect(values(check({ to: 'neil@corvane-example.com' }, seen("Write to o'neil@corvane-example.com")))).toEqual(['neil@corvane-example.com']);
   });
+
+  it('reads an address past the punctuation a person puts around it', () => {
+    for (const written of [
+      "Use jo@corvane-example.co.uk's inbox",
+      "Use jo@corvane-example.co.uk's.",
+      'Write to _jo@corvane-example.co.uk_ today',
+      'Write to -jo@corvane-example.co.uk- today',
+      'Write to jo@corvane-example.co.uk-',
+      'Write to _jo@corvane-example.co.uk.',
+    ]) {
+      expect(check({ to: 'jo@corvane-example.co.uk' }, [{ role: 'user', content: written }]).status).toBe('passed');
+    }
+  });
+
+  it('keeps an underscore or a dash inside the address', () => {
+    const typed: TranscriptTurn[] = [{ role: 'user', content: 'Write to jane_doe@my-firm-example.co.uk today' }];
+    expect(check({ to: 'jane_doe@my-firm-example.co.uk' }, typed).status).toBe('passed');
+    expect(values(check({ to: 'doe@my-firm-example.co.uk' }, typed))).toEqual(['doe@my-firm-example.co.uk']);
+    expect(values(check({ to: 'jane_doe@firm-example.co.uk' }, typed))).toEqual(['jane_doe@firm-example.co.uk']);
+  });
+
+  it('what is taken off the ends never leaves a different address', () => {
+    expect(values(check({ to: 'smith@corvane-example.co.uk' }, seen('_john-smith@corvane-example.co.uk_')))).toEqual(['smith@corvane-example.co.uk']);
+    expect(values(check({ to: 'jo@corvane-example.co' }, seen('jo@corvane-example.co.uk-')))).toEqual(['jo@corvane-example.co']);
+    expect(values(check({ to: 'jo@corvane-example.co.uk' }, seen('jo@corvane-example.co.uk-based.net')))).toEqual(['jo@corvane-example.co.uk']);
+    expect(values(check({ to: 'jo@corvane-example.co.uk' }, seen("jo@corvane-example.co.uk's.net")))).toEqual(['jo@corvane-example.co.uk']);
+  });
 });
 
 describe('checkGroundedAddresses: what grounds nothing', () => {
